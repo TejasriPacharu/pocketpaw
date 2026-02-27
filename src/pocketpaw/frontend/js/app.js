@@ -417,6 +417,7 @@ function app() {
             socket.on('settings', (data) => this.handleSettings(data));
             socket.on('settings_saved', (data) => {
                 this.settingsValidationWarnings = data.warnings || [];
+                this.showToast(data.content || 'Settings updated', 'success');
             });
 
             // Reminder handlers

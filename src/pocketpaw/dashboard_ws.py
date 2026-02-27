@@ -448,11 +448,12 @@ async def websocket_handler(
                 key = data.get("key", "")
 
                 def _api_key_response(content: str):
-                    payload = {"type": "message", "content": content}
                     key_warnings = validate_api_keys(settings)
-                    if key_warnings:
-                        payload["warnings"] = key_warnings
-                    return payload
+                    return {
+                        "type": "settings_saved",
+                        "content": content,
+                        "warnings": key_warnings,
+                    }
 
                 async with _settings_lock:
                     if provider == "anthropic" and key:
