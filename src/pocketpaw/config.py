@@ -12,6 +12,7 @@ Changes:
 
 import json
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -78,6 +79,28 @@ def get_config_path() -> Path:
 def get_token_path() -> Path:
     """Get the access token file path."""
     return get_config_dir() / "access_token"
+
+
+# Telegram bot token format: numeric id + colon + alphanumeric secret
+_TELEGRAM_BOT_TOKEN_RE = re.compile(r"^\d+:[A-Za-z0-9_-]+$")
+
+
+def validate_api_keys(settings: "Settings") -> list[str]:
+    """Validate API key / token formats. Returns list of warning messages (never blocks save)."""
+    warnings: list[str] = []
+    if settings.anthropic_api_key and not settings.anthropic_api_key.startswith("sk-ant-"):
+        warnings.append(
+            "Anthropic API key may be invalid: expected to start with sk-ant-"
+        )
+    if settings.openai_api_key and not settings.openai_api_key.startswith("sk-"):
+        warnings.append("OpenAI API key may be invalid: expected to start with sk-")
+    if settings.telegram_bot_token and not _TELEGRAM_BOT_TOKEN_RE.fullmatch(
+        settings.telegram_bot_token.strip()
+    ):
+        warnings.append(
+            "Telegram bot token may be invalid: expected format is numeric_id:alphanumeric_secret"
+        )
+    return warnings
 
 
 class Settings(BaseSettings):
@@ -555,6 +578,9 @@ class Settings(BaseSettings):
 
         Uses model_dump() to automatically include all fields — no need to
         manually list every field when new settings are added.
+
+        Runs format validation on API keys before saving; logs warnings but
+        never blocks or raises.
         """
         from pocketpaw.credentials import SECRET_FIELDS, get_credential_store
 

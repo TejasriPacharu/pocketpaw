@@ -313,6 +313,64 @@ class TestConfigSecretSeparation:
 
 
 # =============================================================================
+# API KEY VALIDATION (WARNING-ONLY)
+# =============================================================================
+
+
+class TestValidateApiKeys:
+    """Tests for validate_api_keys() — format checks; never blocks save."""
+
+    def test_valid_keys_produce_no_warnings(self):
+        """Valid Anthropic, OpenAI, and Telegram formats yield no warnings."""
+        from pocketpaw.config import Settings, validate_api_keys
+
+        s = Settings(
+            anthropic_api_key="sk-ant-api03-xxx",
+            openai_api_key="sk-abc123",
+            telegram_bot_token="123456789:AAHxYz123-abc_XYZ",
+        )
+        assert validate_api_keys(s) == []
+
+    def test_anthropic_invalid_prefix(self):
+        """Anthropic key not starting with sk-ant- produces a warning."""
+        from pocketpaw.config import Settings, validate_api_keys
+
+        s = Settings(anthropic_api_key="sk-other-xxx")
+        w = validate_api_keys(s)
+        assert len(w) == 1
+        assert "sk-ant-" in w[0] and "Anthropic" in w[0]
+
+    def test_openai_invalid_prefix(self):
+        """OpenAI key not starting with sk- produces a warning."""
+        from pocketpaw.config import Settings, validate_api_keys
+
+        s = Settings(openai_api_key="invalid-key")
+        w = validate_api_keys(s)
+        assert len(w) == 1
+        assert "sk-" in w[0] and "OpenAI" in w[0]
+
+    def test_telegram_invalid_format(self):
+        """Telegram token not matching id:secret produces a warning."""
+        from pocketpaw.config import Settings, validate_api_keys
+
+        s = Settings(telegram_bot_token="no-colon")
+        w = validate_api_keys(s)
+        assert len(w) == 1
+        assert "Telegram" in w[0]
+
+    def test_empty_or_none_keys_no_warnings(self):
+        """None or empty keys are not validated."""
+        from pocketpaw.config import Settings, validate_api_keys
+
+        s = Settings(
+            anthropic_api_key=None,
+            openai_api_key="",
+            telegram_bot_token=None,
+        )
+        assert validate_api_keys(s) == []
+
+
+# =============================================================================
 # MIGRATION — PLAINTEXT → ENCRYPTED
 # =============================================================================
 
