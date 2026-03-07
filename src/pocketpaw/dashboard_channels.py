@@ -566,7 +566,7 @@ async def _validate_channel_tokens(channel: str, config: dict) -> str | None:
 
     elif channel == "discord":
         bot_token = config.get("bot_token", "")
-        if bot_token and len(bot_token) < 50:
+        if bot_token and len(bot_token) < 59:
             return "Invalid Discord bot token. Token appears too short."
 
     elif channel == "telegram":

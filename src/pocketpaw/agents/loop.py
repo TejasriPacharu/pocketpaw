@@ -118,6 +118,24 @@ class AgentLoop:
                     if cancelled
                     else "No active agent run for this session."
                 )
+
+                # Audit log: /kill is security-relevant
+                try:
+                    from pocketpaw.security.audit import AuditEvent, AuditSeverity, get_audit_logger
+
+                    get_audit_logger().log(
+                        AuditEvent.create(
+                            severity=AuditSeverity.WARNING,
+                            actor=message.sender_id or message.channel.value,
+                            action="kill_session",
+                            target=message.session_key,
+                            status="cancelled" if cancelled else "no_active_run",
+                            channel=message.channel.value,
+                        )
+                    )
+                except Exception:
+                    pass
+
                 await self.bus.publish_outbound(
                     OutboundMessage(
                         channel=message.channel,

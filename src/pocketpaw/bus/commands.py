@@ -372,8 +372,7 @@ class CommandHandler:
 
         deleted = await memory.delete_session(resolved)
         # Remove alias so next message uses the default session key
-        if hasattr(memory._store, "remove_session_alias"):
-            await memory._store.remove_session_alias(session_key)
+        await memory.remove_session_alias(session_key)
 
         if deleted:
             return OutboundMessage(

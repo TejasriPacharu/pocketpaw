@@ -3,11 +3,14 @@ Default bootstrap provider reading from local files.
 Created: 2026-02-02
 """
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from pocketpaw.bootstrap.protocol import BootstrapContext, BootstrapProviderProtocol
 from pocketpaw.config import get_config_dir
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,7 +32,10 @@ def _read_identity_file(path: Path, strip: bool = False) -> str:
     cached = _identity_file_cache.get(key)
     if cached and cached.mtime == mtime:
         return cached.content
-    content = path.read_text(encoding="utf-8", errors="replace")
+    raw = path.read_bytes()
+    content = raw.decode("utf-8", errors="replace")
+    if "\ufffd" in content:
+        logger.warning("File %s contains non-UTF-8 bytes (replaced with placeholders)", path)
     if strip:
         content = content.strip()
     _identity_file_cache[key] = _IdentityCache(content=content, mtime=mtime)

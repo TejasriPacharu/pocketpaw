@@ -1644,6 +1644,8 @@ def run_dashboard(
     """
     global _uvicorn_server, _restart_requested
 
+    _MAX_RESTARTS = 5
+    _restart_count = 0
     first_run = True
     while True:
         # On restart, re-read host/port from the persisted config
@@ -1700,6 +1702,10 @@ def run_dashboard(
 
             if not _restart_requested:
                 break  # Normal shutdown (Ctrl+C, etc.) — exit the loop
+            _restart_count += 1
+            if _restart_count > _MAX_RESTARTS:
+                logger.error("Max restart limit (%d) reached, exiting.", _MAX_RESTARTS)
+                break
             logger.info("Restarting server with updated settings...")
 
 
