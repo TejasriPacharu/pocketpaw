@@ -294,12 +294,12 @@ class SlackAdapter(BaseChannelAdapter):
                 "ts": result["ts"],
                 "text": content,
                 "thread_ts": thread_ts,
-                "last_update": asyncio.get_event_loop().time(),
+                "last_update": asyncio.get_running_loop().time(),
             }
         else:
             self._buffers[chat_id]["text"] += content
 
-        now = asyncio.get_event_loop().time()
+        now = asyncio.get_running_loop().time()
         buf = self._buffers[chat_id]
         if now - buf["last_update"] > 1.5:
             await self._update_buffer_message(chat_id)

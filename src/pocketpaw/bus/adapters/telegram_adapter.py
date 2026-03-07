@@ -240,6 +240,8 @@ class TelegramAdapter(BaseChannelAdapter):
     # --- Buffering logic ---
 
     async def _handle_stream_chunk(self, message: OutboundMessage) -> None:
+        if not self.app:
+            return
         chat_id = message.chat_id
         content = message.content
 
@@ -255,19 +257,21 @@ class TelegramAdapter(BaseChannelAdapter):
             self._buffers[chat_id] = {
                 "message_id": sent_msg.message_id,
                 "text": content,
-                "last_update": asyncio.get_event_loop().time(),
+                "last_update": asyncio.get_running_loop().time(),
             }
         else:
             self._buffers[chat_id]["text"] += content
 
         # Rate-limited message update
-        now = asyncio.get_event_loop().time()
+        now = asyncio.get_running_loop().time()
         buf = self._buffers[chat_id]
         if now - buf["last_update"] > _BUFFER_UPDATE_INTERVAL:
             await self._update_message(chat_id, buf["message_id"], buf["text"])
             buf["last_update"] = now
 
     async def _flush_stream_buffer(self, chat_id: str) -> None:
+        if not self.app:
+            return
         if chat_id in self._buffers:
             buf = self._buffers[chat_id]
             text = convert_markdown(buf["text"], self.channel)
@@ -275,6 +279,8 @@ class TelegramAdapter(BaseChannelAdapter):
             del self._buffers[chat_id]
 
     async def _update_message(self, chat_id: str, message_id: int, text: str) -> None:
+        if not self.app:
+            return
         try:
             if not text.strip():
                 return

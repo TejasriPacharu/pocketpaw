@@ -90,10 +90,6 @@ class AgentLoop:
 
     async def cancel_session(self, session_key: str) -> bool:
         """Cancel in-flight processing for a session. Returns True if cancelled."""
-        router = self._router
-        if router is not None:
-            await router.stop()
-
         task = self._active_tasks.get(session_key)
         if task is not None and not task.done():
             task.cancel()
@@ -114,7 +110,7 @@ class AgentLoop:
             # Uses the same regex as CommandHandler to avoid false positives
             # on normal sentences containing "kill".
             content = message.content.strip()
-            _kill_match = re.match(r"^[/!]kill(?:@\S+)?\s*$", content, re.IGNORECASE)
+            _kill_match = re.match(r"^[/!]kill(?:@\S+)?(?:\s.*)?$", content, re.IGNORECASE)
             if _kill_match:
                 cancelled = await self.cancel_session(message.session_key)
                 reply = (

@@ -223,7 +223,7 @@ async def _ask_async(question: str) -> None:
 
         response_parts: list[str] = []
         async for event in router.run(question, system_prompt=system_prompt):
-            if event.type in ("text", "response"):
+            if event.type == "message":
                 response_parts.append(event.content)
             elif event.type == "error":
                 _print(f"Error: {event.content}", style="red")
@@ -310,7 +310,7 @@ async def _chat_async() -> None:
         if router:
             response_parts: list[str] = []
             async for event in router.run(user_input, system_prompt=system_prompt):
-                if event.type in ("text", "response"):
+                if event.type == "message":
                     response_parts.append(event.content)
                     # Stream to terminal
                     sys.stdout.write(event.content)

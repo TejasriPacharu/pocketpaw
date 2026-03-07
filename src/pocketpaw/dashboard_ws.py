@@ -219,8 +219,7 @@ async def websocket_handler(
                     f"\u26a1 Processing message with Backend: {settings.agent_backend}"
                     f" (Provider: {settings.llm_provider})"
                 )
-                logger.warning(log_msg)  # Use WARNING to ensure it shows up
-                print(log_msg)  # Force stdout just in case
+                logger.info(log_msg)
 
                 await ws_adapter.handle_message(chat_id, data)
 
@@ -236,10 +235,20 @@ async def websocket_handler(
                 session_id = data.get("session_id", "")
                 # Parse safe_key: "websocket_<uuid>"
                 parts = session_id.split("_", 1)
-                if len(parts) == 2:
+                if len(parts) == 2 and parts[0] == "websocket":
                     raw_id = parts[1]
                     channel_prefix = parts[0]
                     new_session_key = f"{channel_prefix}:{raw_id}"
+
+                    # Verify session file exists and path stays under sessions dir
+                    sessions_dir = Path.home() / ".pocketpaw" / "memory" / "sessions"
+                    session_file = sessions_dir / f"{session_id}.json"
+                    try:
+                        session_file.resolve().relative_to(sessions_dir.resolve())
+                    except ValueError:
+                        continue  # path traversal attempt
+                    if not session_file.exists():
+                        continue
 
                     # Unregister old connection, register with new chat_id
                     await ws_adapter.unregister_connection(chat_id)

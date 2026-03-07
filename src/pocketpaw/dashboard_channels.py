@@ -556,7 +556,10 @@ async def _validate_channel_tokens(channel: str, config: dict) -> str | None:
             except ImportError:
                 pass  # slack_sdk not installed, skip validation
             except Exception as e:
-                return f"Slack bot token validation failed: {e}"
+                err = str(e)
+                if bot_token and bot_token in err:
+                    err = err.replace(bot_token, "[REDACTED]")
+                return f"Slack bot token validation failed: {err}"
         if app_token:
             if not app_token.startswith("xapp-"):
                 return "Invalid Slack app token. It should start with 'xapp-'."

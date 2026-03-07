@@ -405,7 +405,7 @@ def create_app(settings: Settings) -> FastAPI:
             # like https://api.telegram.org/bot<TOKEN>/getMe.
             if bot_token and bot_token in error_msg:
                 error_msg = error_msg.replace(bot_token, "[REDACTED]")
-            logger.error(f"Setup failed: {e}")
+            logger.error("Setup failed: %s", error_msg)
             return {"error": f"Failed to connect to Telegram: {error_msg}"}
 
     @app.get("/status")
