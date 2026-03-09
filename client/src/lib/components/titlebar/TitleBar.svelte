@@ -8,6 +8,7 @@
   import QuickActions from "./QuickActions.svelte";
   import ConnectionBadge from "./ConnectionBadge.svelte";
   import AgentProgressBar from "./AgentProgressBar.svelte";
+  import WorkspaceTabs from "./WorkspaceTabs.svelte";
 
   let { onToggleSidebar }: { onToggleSidebar?: () => void } = $props();
 

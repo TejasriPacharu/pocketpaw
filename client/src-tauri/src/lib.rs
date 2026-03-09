@@ -139,6 +139,10 @@ pub fn run() {
 
                 let window = _app.get_webview_window("main").unwrap();
 
+                // Open devtools in debug builds
+                #[cfg(debug_assertions)]
+                window.open_devtools();
+
                 // Apply native vibrancy/mica/acrylic to all pre-created windows
                 let effect = vibrancy::apply_native_effect(&window, None);
                 *_app
