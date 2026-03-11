@@ -189,6 +189,13 @@ class Settings(BaseSettings):
             "Agent backend: 'claude_agent_sdk', 'openai_agents', 'google_adk', or 'opencode'"
         ),
     )
+    #backend fallback chain
+    fallback_backends:list[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional fallback backends if the primary fails (e.g. ['openai_agents', 'google_adk'])"
+        )
+    )
 
     # Claude Agent SDK Settings
     claude_sdk_provider: str = Field(

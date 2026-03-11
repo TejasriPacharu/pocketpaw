@@ -1,8 +1,8 @@
 """Agent Router — registry-based backend selection.
 
 Uses the backend registry to lazily discover and instantiate the
-configured agent backend. Falls back to ``claude_agent_sdk`` when
-the requested backend is unavailable.
+configured agent backend. Supports optional user-configured fallback
+backends if the primary backend fails.
 """
 
 import logging
@@ -21,19 +21,25 @@ class AgentRouter:
 
     def __init__(self, settings: Settings):
         self.settings = settings
+
+        # Primary backend instance (required by existing tests)
         self._backend = None
         self._active_backend_name: str | None = None
 
-        # NEW: fallback backend list (optional)
+        # Cache for fallback backend instances
+        self._fallback_instances: dict[str, object] = {}
+
+        # Optional fallback backends
         self._fallback_backends: list[str] = getattr(settings, "fallback_backends", [])
 
         self._initialize_backend()
 
     def _initialize_backend(self) -> None:
-        """Initialize the selected agent backend from the registry."""
-        backend_name = self.settings.agent_backend
+        """Initialize the primary backend."""
 
+        backend_name = self.settings.agent_backend
         cls = get_backend_class(backend_name)
+
         if cls is None:
             logger.warning(
                 "Backend '%s' unavailable — falling back to claude_agent_sdk",
@@ -44,17 +50,39 @@ class AgentRouter:
 
         if cls is None:
             logger.error("No agent backend could be loaded")
-            self._active_backend_name = None
             return
 
         try:
             self._backend = cls(self.settings)
             self._active_backend_name = backend_name
+
             info = cls.info()
-            logger.info("Backend: %s", info.display_name)
+            logger.info("🚀 Backend: %s", info.display_name)
+
         except Exception as exc:
             logger.error("Failed to initialize '%s' backend: %s", backend_name, exc)
-            self._active_backend_name = None
+
+    def _get_fallback_backend(self, backend_name: str):
+        """Return cached fallback backend or create it."""
+
+        if backend_name in self._fallback_instances:
+            return self._fallback_instances[backend_name]
+
+        cls = get_backend_class(backend_name)
+        if cls is None:
+            return None
+
+        try:
+            backend = cls(self.settings)
+            self._fallback_instances[backend_name] = backend
+            return backend
+        except Exception as exc:
+            logger.warning(
+                "Failed to initialize fallback backend '%s': %s",
+                backend_name,
+                exc,
+            )
+            return None
 
     async def run(
         self,
@@ -64,67 +92,85 @@ class AgentRouter:
         history: list[dict] | None = None,
         session_key: str | None = None,
     ) -> AsyncIterator[AgentEvent]:
-        """Run the agent with simple backend fallback."""
-        backend_chain: list[str] = []
-        # primary backend
-        if self._active_backend_name:
-            backend_chain.append(self._active_backend_name)
-        # always include Claude fallback
-        backend_chain=[]
-        if self._active_backend_name:
-            backend_chain.append(self._active_backend_name)
-        backend_chain.extend(self._fallback_backends)
-        if "claude_agent_sdk" not in backend_chain:
-            backend_chain.append("claude_agent_sdk")
+        """Run the agent with optional fallback backends."""
+
         last_error: str | None = None
-        for backend_name in backend_chain:
-            cls = get_backend_class(backend_name)
-            if cls is None:
-                logger.warning("Backend '%s' not available", backend_name)
-                continue
+
+        # First try primary backend
+        if self._backend is not None:
             try:
-                backend = cls(self.settings)
-                logger.info("Attempting backend: %s", backend_name)
+                async for event in self._backend.run(
+                    message,
+                    system_prompt=system_prompt,
+                    history=history,
+                    session_key=session_key,
+                ):
+                    yield event
+                    if event.type == "done":
+                        return
+            except Exception as exc:
+                last_error = str(exc)
+                logger.warning(
+                    "Primary backend '%s' failed: %s",
+                    self._active_backend_name,
+                    exc,
+                )
+
+        # Try fallback backends
+        for backend_name in self._fallback_backends:
+            backend = self._get_fallback_backend(backend_name)
+
+            if backend is None:
+                logger.warning("Fallback backend '%s' unavailable", backend_name)
+                continue
+
+            logger.info("Attempting fallback backend: %s", backend_name)
+
+            try:
                 async for event in backend.run(
                     message,
                     system_prompt=system_prompt,
                     history=history,
                     session_key=session_key,
                 ):
-                    if event.type == "error":
-                        # capture error but try next backend
-                        last_error = str(event.content)
-                        logger.warning(
-                            "Backend '%s' returned error: %s",
-                            backend_name,
-                            event.content,
-                        )
-                        break
                     yield event
-                else:
-                    # backend completed successfully
-                    return
+                    if event.type == "done":
+                        return
+
             except Exception as exc:
                 last_error = str(exc)
                 logger.warning(
-                    "Backend '%s' raised exception: %s",
+                    "Fallback backend '%s' failed: %s",
                     backend_name,
                     exc,
                 )
-                continue
+
         yield AgentEvent(
             type="error",
             content=last_error or "All configured backends failed",
         )
+
         yield AgentEvent(type="done", content="")
 
     async def stop(self) -> None:
-        """Stop the agent."""
+        """Stop all backend instances."""
+
         if self._backend:
-            await self._backend.stop()
+            try:
+                await self._backend.stop()
+            except Exception:
+                pass
+
+        for backend in self._fallback_instances.values():
+            try:
+                await backend.stop()
+            except Exception:
+                pass
 
     def get_backend_info(self) -> BackendInfo | None:
         """Return metadata about the active backend."""
+
         if self._backend is None:
             return None
+
         return self._backend.info()
