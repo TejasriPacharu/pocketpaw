@@ -178,7 +178,7 @@ class OpenAIAgentsBackend:
         config = adapter.resolve_config(self.settings, backend="openai_agents")
 
         # LiteLLM: prefer native SDK model wrapper
-        if hasattr(adapter, "build_agents_model"):
+        if provider == "litellm" and hasattr(adapter, "build_agents_model"):
             return adapter.build_agents_model(config)
 
         # All other providers: wrap in OpenAIChatCompletionsModel

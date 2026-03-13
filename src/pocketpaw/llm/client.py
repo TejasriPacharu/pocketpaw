@@ -88,9 +88,11 @@ class LLMClient:
             provider=self.provider,
             model=self.model,
             api_key=self.api_key,
-            base_url=self.openai_compatible_base_url or self.ollama_host
-            if self.is_ollama
-            else self.openai_compatible_base_url or None,
+            base_url=(
+                (self.ollama_host or self.openai_compatible_base_url)
+                if self.is_ollama
+                else (self.openai_compatible_base_url or None)
+            ),
         )
 
     def create_openai_client(

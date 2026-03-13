@@ -1,5 +1,6 @@
 """Tests for LLM provider adapters."""
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -228,7 +229,8 @@ class TestLiteLLMAdapter:
             finally:
                 del sys.modules["agents.extensions.models.litellm_model"]
 
-    def test_build_agents_model_fallback(self):
+    def test_build_agents_model_proxy_mode(self):
+        """When base_url is set, use OpenAI-compat client (proxy handles routing)."""
         adapter = get_adapter("litellm")
         config = ProviderConfig(
             provider="litellm",
@@ -236,21 +238,8 @@ class TestLiteLLMAdapter:
             api_key="k",
             base_url="http://proxy:4000",
         )
-        import builtins
-        import sys
-
-        real_import = builtins.__import__
-
-        def block_litellm(name, *args, **kwargs):
-            if "litellm_model" in name:
-                raise ImportError("blocked for test")
-            return real_import(name, *args, **kwargs)
-
-        # Remove cached module and block re-import
-        sys.modules.pop("agents.extensions.models.litellm_model", None)
         mock_oai_model = MagicMock()
         with (
-            patch("builtins.__import__", side_effect=block_litellm),
             patch.dict(
                 sys.modules,
                 {

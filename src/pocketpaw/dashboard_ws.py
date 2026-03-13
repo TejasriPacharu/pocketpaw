@@ -403,7 +403,7 @@ async def websocket_handler(
                     # LiteLLM
                     if data.get("litellm_api_base") is not None:
                         settings.litellm_api_base = data["litellm_api_base"]
-                    if data.get("litellm_api_key"):
+                    if data.get("litellm_api_key") is not None:
                         settings.litellm_api_key = data["litellm_api_key"]
                     if data.get("litellm_model") is not None:
                         settings.litellm_model = data["litellm_model"]

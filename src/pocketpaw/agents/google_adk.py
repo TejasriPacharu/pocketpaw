@@ -77,7 +77,7 @@ class GoogleADKBackend:
 
         from pocketpaw.llm.providers import get_adapter
 
-        provider = getattr(self.settings, "google_adk_provider", "google")
+        provider = self.settings.google_adk_provider
         if provider == "litellm":
             adapter = get_adapter("litellm")
             config = adapter.resolve_config(self.settings, backend="google_adk")
@@ -171,7 +171,7 @@ class GoogleADKBackend:
         """Build the model via provider adapter."""
         from pocketpaw.llm.providers import get_adapter
 
-        provider = getattr(self.settings, "google_adk_provider", "google")
+        provider = self.settings.google_adk_provider
         if provider == "litellm":
             adapter = get_adapter("litellm")
             config = adapter.resolve_config(self.settings, backend="google_adk")

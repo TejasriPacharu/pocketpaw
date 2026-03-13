@@ -58,15 +58,26 @@ class LiteLLMAdapter:
     def build_agents_model(self, config: ProviderConfig) -> Any:
         """Build a model for the OpenAI Agents SDK.
 
-        Tries native LitellmModel first, falls back to OpenAI-compat proxy.
+        - Proxy mode (base_url set): uses OpenAI-compat client pointing at the
+          proxy, since the proxy handles model routing.
+        - Direct SDK mode (no base_url): uses native LitellmModel which calls
+          litellm.acompletion directly. Requires LiteLLM-prefixed model names
+          (e.g. "anthropic/claude-sonnet-4-6").
         """
+        # Proxy mode: route through the proxy as an OpenAI-compat endpoint
+        if config.base_url:
+            from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+
+            client = self.build_openai_client(config)
+            return OpenAIChatCompletionsModel(model=config.model, openai_client=client)
+
+        # Direct SDK mode: use native LitellmModel
         try:
             from agents.extensions.models.litellm_model import LitellmModel
 
             return LitellmModel(
                 model=config.model,
                 api_key=config.api_key,
-                base_url=config.base_url,
             )
         except ImportError:
             logger.debug("LitellmModel not available, falling back to OpenAI-compat")
@@ -83,7 +94,12 @@ class LiteLLMAdapter:
         try:
             from google.adk.models.lite_llm import LiteLlm
 
-            return LiteLlm(model=config.model)
+            kwargs: dict[str, Any] = {"model": config.model}
+            if config.api_key:
+                kwargs["api_key"] = config.api_key
+            if config.base_url:
+                kwargs["base_url"] = config.base_url
+            return LiteLlm(**kwargs)
         except ImportError:
             logger.warning("google.adk.models.lite_llm not available, falling back to model string")
             return config.model
