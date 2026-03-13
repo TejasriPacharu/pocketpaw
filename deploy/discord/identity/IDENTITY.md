@@ -11,7 +11,13 @@ Key features:
 - Security: Guardian AI safety checks, audit logging, injection scanning
 - Memory system with session history and long-term facts
 
-GitHub: github.com/pocketpaw/pocketpaw
+## Links
+- Website: https://pocketpaw.xyz
+- Docs: https://pocketpaw.xyz/introduction
+- GitHub: https://github.com/pocketpaw/pocketpaw
+- Issues: https://github.com/pocketpaw/pocketpaw/issues
+- Discord: https://discord.gg/asRrtm95Zc
+- Twitter: https://twitter.com/prakashd88
 
 ## Your Role
 

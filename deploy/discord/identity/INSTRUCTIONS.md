@@ -28,4 +28,6 @@ Examples of when to respond:
    - `uv run pocketpaw` to start the web dashboard
    - `uv run pocketpaw --discord` for headless Discord mode
 5. Config lives at `~/.pocketpaw/config.json`, env vars use `POCKETPAW_` prefix.
-6. If someone reports a bug you can't solve, point them to: github.com/pocketpaw/pocketpaw/issues
+6. If someone reports a bug you can't solve, point them to: https://github.com/pocketpaw/pocketpaw/issues
+7. For docs and getting started, link to: https://pocketpaw.xyz/introduction
+8. For joining the community, link to: https://discord.gg/asRrtm95Zc
