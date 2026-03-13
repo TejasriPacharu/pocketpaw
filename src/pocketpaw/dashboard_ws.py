@@ -347,6 +347,8 @@ async def websocket_handler(
                         if isinstance(val, int | float) and 1 <= val <= 200:
                             settings.openai_agents_max_turns = int(val)
                     # Google ADK
+                    if data.get("google_adk_provider"):
+                        settings.google_adk_provider = data["google_adk_provider"]
                     if "google_adk_model" in data:
                         settings.google_adk_model = data["google_adk_model"]
                     if "google_adk_max_turns" in data:
@@ -397,6 +399,13 @@ async def websocket_handler(
                             settings.openai_compatible_max_tokens = int(val)
                     if data.get("gemini_model"):
                         settings.gemini_model = data["gemini_model"]
+                    # LiteLLM
+                    if data.get("litellm_api_base") is not None:
+                        settings.litellm_api_base = data["litellm_api_base"]
+                    if data.get("litellm_api_key"):
+                        settings.litellm_api_key = data["litellm_api_key"]
+                    if data.get("litellm_model") is not None:
+                        settings.litellm_model = data["litellm_model"]
                     if "bypass_permissions" in data:
                         settings.bypass_permissions = bool(data.get("bypass_permissions"))
                     if data.get("web_search_provider"):
@@ -632,6 +641,7 @@ async def websocket_handler(
                             "openaiAgentsProvider": settings.openai_agents_provider,
                             "openaiAgentsModel": settings.openai_agents_model,
                             "openaiAgentsMaxTurns": settings.openai_agents_max_turns,
+                            "googleAdkProvider": settings.google_adk_provider,
                             "googleAdkModel": settings.google_adk_model,
                             "googleAdkMaxTurns": settings.google_adk_max_turns,
                             "codexCliModel": settings.codex_cli_model,
@@ -651,6 +661,9 @@ async def websocket_handler(
                             "openaiCompatibleMaxTokens": settings.openai_compatible_max_tokens,
                             "hasOpenaiCompatibleKey": bool(settings.openai_compatible_api_key),
                             "geminiModel": settings.gemini_model,
+                            "litellmApiBase": settings.litellm_api_base,
+                            "litellmModel": settings.litellm_model,
+                            "hasLitellmKey": bool(settings.litellm_api_key),
                             "hasGoogleApiKey": bool(settings.google_api_key),
                             "bypassPermissions": settings.bypass_permissions,
                             "hasAnthropicKey": bool(settings.anthropic_api_key),
