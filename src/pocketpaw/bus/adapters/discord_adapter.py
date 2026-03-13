@@ -7,6 +7,7 @@ Modified: 2026-03-10 - admin gate on /info, setname sanitization,
 
 import asyncio
 import logging
+import re
 import time
 from collections import deque
 from typing import Any
@@ -23,6 +24,24 @@ _BOT_AUTHOR_KEY = "__bot__"
 _MAX_BOT_NAME_LENGTH = 64
 _IDLE_CHANNEL_TTL = 3600  # Evict conversation history for channels idle > 1 hour
 _CODE_BLOCK_FILE_THRESHOLD = 800  # Upload code blocks larger than this as files
+
+# Heuristic reaction patterns: (compiled_regex, emoji)
+# Applied to conversation channel messages the bot skips (doesn't respond to).
+_REACTION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # Gratitude after bot interaction (only if bot was recent speaker)
+    (re.compile(r"\b(thanks?|thx|ty|thank\s*you|tysm|appreciate)\b", re.I), "\U0001f44d"),
+    # Greetings
+    (re.compile(r"^(hi|hey|hello|yo|sup|gm|good\s*morning)\b", re.I), "\U0001f44b"),
+    # Laughter
+    (re.compile(r"\b(lmao|lmfao|rofl)\b|😂|🤣", re.I), "\U0001f602"),
+    (re.compile(r"\b(lol|haha|hehe)\b", re.I), "\U0001f604"),
+    # Celebration / success
+    (re.compile(r"\b(let'?s\s*go|woohoo|yay|lfg|pog|poggers|w\b|huge)\b", re.I), "\U0001f389"),
+    # Sadness / frustration
+    (re.compile(r"\b(rip|pain|sadge|sad|oof|bruh)\b", re.I), "\U0001f614"),
+    # Mind blown
+    (re.compile(r"\b(woah|wow|insane|crazy|wild|no\s*way)\b", re.I), "\U0001f92f"),
+]
 
 # Valid activity types for the /setstatus command
 _ACTIVITY_TYPES = {"playing", "watching", "listening", "competing"}
@@ -904,7 +923,9 @@ class DiscordAdapter(BaseChannelAdapter):
             if is_conversation and not is_mention:
                 convo_mode = adapter._should_respond(message.channel.id, message.content)
                 if convo_mode is None:
-                    return  # Skip, don't waste LLM tokens
+                    # Not responding, but maybe react
+                    await adapter._maybe_react(message, message.channel.id)
+                    return
 
             # Only respond to DMs, mentions, or conversation channels
             if not is_dm and not is_mention and not is_conversation:
@@ -1072,6 +1093,37 @@ class DiscordAdapter(BaseChannelAdapter):
         task = self._typing_tasks.pop(chat_id, None)
         if task and not task.done():
             task.cancel()
+
+    # ── Heuristic reactions ─────────────────────────────────────────────
+
+    async def _maybe_react(self, message: Any, channel_id: int) -> None:
+        """Add a contextual emoji reaction to a message the bot doesn't reply to.
+
+        Only fires in conversation channels. Skips if the message is a question
+        (to avoid implying the bot will answer). Picks the first matching pattern.
+        """
+        text = message.content
+        if not text:
+            return
+
+        # Don't react to questions (avoids confusion about whether bot will respond)
+        if text.rstrip().endswith("?"):
+            return
+
+        # Check gratitude pattern only if bot was the recent speaker
+        history = self._conversation_history.get(channel_id, [])
+        bot_was_recent = len(history) >= 2 and history[-2]["author"] == _BOT_AUTHOR_KEY
+
+        for pattern, emoji in _REACTION_PATTERNS:
+            if pattern.search(text):
+                # Gratitude reaction only makes sense if bot just helped
+                if emoji == "\U0001f44d" and not bot_was_recent:
+                    continue
+                try:
+                    await message.add_reaction(emoji)
+                except Exception:
+                    pass
+                return  # One reaction max
 
     # ── Presence ──────────────────────────────────────────────────────
 

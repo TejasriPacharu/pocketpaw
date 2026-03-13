@@ -755,6 +755,47 @@ async def test_stale_interaction_fallback_stream():
 # ── Overflow tracking test ─────────────────────────────────────────────
 
 
+async def test_maybe_react_laughter():
+    """Bot reacts with laugh emoji to 'lol' messages it skips."""
+    a = DiscordAdapter(token="t", conversation_channel_ids=[100])
+    a._add_to_conversation_history(100, "alice", "lol")
+    mock_msg = AsyncMock()
+    mock_msg.content = "lol"
+
+    await a._maybe_react(mock_msg, 100)
+    mock_msg.add_reaction.assert_called_once_with("\U0001f604")
+
+
+async def test_maybe_react_thanks_only_after_bot():
+    """Thumbs up for 'thanks' only if bot was the previous speaker."""
+    a = DiscordAdapter(token="t", conversation_channel_ids=[100])
+    mock_msg = AsyncMock()
+    mock_msg.content = "thanks!"
+
+    # No bot in history -> no thumbs up
+    a._add_to_conversation_history(100, "alice", "hey")
+    a._add_to_conversation_history(100, "bob", "thanks!")
+    await a._maybe_react(mock_msg, 100)
+    mock_msg.add_reaction.assert_not_called()
+
+    # Bot was previous speaker -> thumbs up
+    mock_msg.reset_mock()
+    a._add_to_conversation_history(100, _BOT_AUTHOR_KEY, "here you go")
+    a._add_to_conversation_history(100, "bob", "thanks!")
+    await a._maybe_react(mock_msg, 100)
+    mock_msg.add_reaction.assert_called_once_with("\U0001f44d")
+
+
+async def test_maybe_react_skips_questions():
+    """Don't react to questions (avoids implying bot will respond)."""
+    a = DiscordAdapter(token="t", conversation_channel_ids=[100])
+    mock_msg = AsyncMock()
+    mock_msg.content = "wow really?"
+
+    await a._maybe_react(mock_msg, 100)
+    mock_msg.add_reaction.assert_not_called()
+
+
 def test_extract_large_code_blocks():
     """Large code blocks are extracted as file references."""
     text = "Here's the code:\n```python\n" + "x = 1\n" * 200 + "```\nDone."
