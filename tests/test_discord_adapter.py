@@ -755,31 +755,6 @@ async def test_stale_interaction_fallback_stream():
 # ── Overflow tracking test ─────────────────────────────────────────────
 
 
-async def test_thinking_reaction_added_and_removed():
-    """Thinking reaction is added on receive and removed on first chunk."""
-    a = DiscordAdapter(token="t")
-    mock_source = AsyncMock()
-    mock_user = MagicMock()
-    mock_channel = AsyncMock()
-    mock_channel.send = AsyncMock(return_value=AsyncMock())
-    mock_client = MagicMock()
-    mock_client.get_channel = MagicMock(return_value=mock_channel)
-    mock_client.user = mock_user
-    a._client = mock_client
-    a._source_messages["12345"] = mock_source
-
-    # Add reaction
-    await a._add_thinking_reaction("12345")
-    mock_source.add_reaction.assert_called_once()
-
-    # Remove reaction on first chunk
-    chunk = OutboundMessage(
-        channel=Channel.DISCORD, chat_id="12345", content="Hi", is_stream_chunk=True
-    )
-    await a.send(chunk)
-    mock_source.remove_reaction.assert_called_once()
-
-
 def test_extract_large_code_blocks():
     """Large code blocks are extracted as file references."""
     text = "Here's the code:\n```python\n" + "x = 1\n" * 200 + "```\nDone."

@@ -22,7 +22,6 @@ _NO_RESPONSE_MARKER = "[NO_RESPONSE]"
 _BOT_AUTHOR_KEY = "__bot__"
 _MAX_BOT_NAME_LENGTH = 64
 _IDLE_CHANNEL_TTL = 3600  # Evict conversation history for channels idle > 1 hour
-_THINKING_EMOJI = "\U0001f9e0"  # brain emoji for "processing" reaction
 _CODE_BLOCK_FILE_THRESHOLD = 800  # Upload code blocks larger than this as files
 
 # Valid activity types for the /setstatus command
@@ -983,7 +982,7 @@ class DiscordAdapter(BaseChannelAdapter):
             )
             adapter._source_messages[chat_id] = message
             adapter._start_typing(chat_id)
-            await adapter._add_thinking_reaction(chat_id)
+
             await adapter._publish_inbound(msg)
 
         self._client = client
@@ -1074,26 +1073,6 @@ class DiscordAdapter(BaseChannelAdapter):
         if task and not task.done():
             task.cancel()
 
-    # ── Reactions ─────────────────────────────────────────────────────
-
-    async def _add_thinking_reaction(self, chat_id: str) -> None:
-        """Add a thinking reaction to the source message."""
-        source = self._source_messages.get(chat_id)
-        if source:
-            try:
-                await source.add_reaction(_THINKING_EMOJI)
-            except Exception:
-                pass
-
-    async def _remove_thinking_reaction(self, chat_id: str) -> None:
-        """Remove the thinking reaction from the source message."""
-        source = self._source_messages.get(chat_id)
-        if source and self._client:
-            try:
-                await source.remove_reaction(_THINKING_EMOJI, self._client.user)
-            except Exception:
-                pass
-
     # ── Presence ──────────────────────────────────────────────────────
 
     async def _update_activity_from_sessions(self) -> None:
@@ -1163,7 +1142,7 @@ class DiscordAdapter(BaseChannelAdapter):
                 and self._is_no_response(message.content)
             ):
                 self._pending_interactions.pop(message.chat_id, None)
-                await self._remove_thinking_reaction(message.chat_id)
+
                 self._source_messages.pop(message.chat_id, None)
                 self._stop_typing(message.chat_id)
                 return
@@ -1181,7 +1160,6 @@ class DiscordAdapter(BaseChannelAdapter):
 
             # Normal (non-streaming) message
             self._stop_typing(message.chat_id)
-            await self._remove_thinking_reaction(message.chat_id)
             interaction = self._pending_interactions.pop(message.chat_id, None)
             if interaction:
                 try:
@@ -1252,9 +1230,8 @@ class DiscordAdapter(BaseChannelAdapter):
         content = message.content
         is_convo = int(chat_id) in self.conversation_channel_ids
 
-        # Stop typing and remove thinking reaction once content starts
+        # Stop typing once we start streaming content
         self._stop_typing(chat_id)
-        await self._remove_thinking_reaction(chat_id)
 
         if chat_id not in self._buffers:
             if is_convo:
