@@ -193,7 +193,7 @@ class Settings(BaseSettings):
     fallback_backends:list[str] = Field(
         default_factory=list,
         description=(
-            "Optional fallback backends if the primary fails (e.g. ['openai_agents', 'google_adk'])"
+            "Ordered list of fallback backends to try if the primary backend fails"
         )
     )
 

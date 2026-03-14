@@ -30,7 +30,7 @@ class AgentRouter:
         self._fallback_instances: dict[str, object] = {}
 
         # Optional fallback backends
-        self._fallback_backends: list[str] = getattr(settings, "fallback_backends", [])
+        self._fallback_backends: list[str] = settings.fallback_backends
 
         self._initialize_backend()
 
@@ -98,6 +98,7 @@ class AgentRouter:
 
         # First try primary backend
         if self._backend is not None:
+            buffer = []
             try:
                 async for event in self._backend.run(
                     message,
@@ -105,9 +106,14 @@ class AgentRouter:
                     history=history,
                     session_key=session_key,
                 ):
-                    yield event
+                    buffer.append(event)
+                    if event.type =="error":    
+                        raise RuntimeError(str(event.content))
                     if event.type == "done":
-                        return
+                        for e in buffer:
+                            yield e
+                    return
+
             except Exception as exc:
                 last_error = str(exc)
                 logger.warning(
@@ -158,14 +164,14 @@ class AgentRouter:
         if self._backend:
             try:
                 await self._backend.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Error stopping primary backend: %s", exc)
 
         for backend in self._fallback_instances.values():
             try:
                 await backend.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Error stopping fallback backend: %s", exc)
 
     def get_backend_info(self) -> BackendInfo | None:
         """Return metadata about the active backend."""
