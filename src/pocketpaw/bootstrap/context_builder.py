@@ -120,6 +120,8 @@ class AgentContextBuilder:
                 username = meta.get("username", "")
                 guild_id = meta.get("guild_id", "")
                 ctx_lines = []
+                if sender_id:
+                    ctx_lines.append(f"sender_id: {sender_id}")
                 if username:
                     ctx_lines.append(f"discord_username: {username}")
                 if guild_id:

@@ -168,7 +168,56 @@ class DiscliAdapter(BaseChannelAdapter):
                 ],
             },
             {"name": "clear", "description": "Clear the current session history"},
+            {
+                "name": "rename",
+                "description": "Rename the current session",
+                "params": [
+                    {
+                        "name": "title",
+                        "type": "string",
+                        "description": "New session title",
+                    }
+                ],
+            },
             {"name": "status", "description": "Show current session info"},
+            {"name": "delete", "description": "Delete the current session"},
+            {
+                "name": "backend",
+                "description": "Show or switch agent backend",
+                "params": [
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "description": "Backend name to switch to",
+                        "required": False,
+                    }
+                ],
+            },
+            {"name": "backends", "description": "List all available backends"},
+            {
+                "name": "model",
+                "description": "Show or switch model for current backend",
+                "params": [
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "description": "Model name to switch to",
+                        "required": False,
+                    }
+                ],
+            },
+            {
+                "name": "tools",
+                "description": "Show or switch tool profile",
+                "params": [
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "description": "Tool profile name",
+                        "required": False,
+                    }
+                ],
+            },
             {"name": "help", "description": "Show PocketPaw help"},
             {"name": "kill", "description": "Cancel the current request"},
             {
@@ -413,8 +462,16 @@ class DiscliAdapter(BaseChannelAdapter):
             )
             return
 
-        # Handle /converse locally (toggle conversation mode for this channel)
+        # Handle /converse locally — admin only
         if command == "converse":
+            is_admin = data.get("is_admin", False)
+            if not is_admin:
+                await self._send_command(
+                    "interaction_followup",
+                    interaction_token=interaction_token,
+                    content="Only server administrators can toggle conversation mode.",
+                )
+                return
             ch_id = int(channel_id)
             if ch_id in self.conversation_channel_ids:
                 self.conversation_channel_ids.remove(ch_id)
@@ -440,7 +497,28 @@ class DiscliAdapter(BaseChannelAdapter):
         elif command == "resume":
             target = args.get("target", "")
             content = f"/resume {target}" if target else "/resume"
-        elif command in ("new", "sessions", "clear", "status", "help", "kill", "delete"):
+        elif command == "rename":
+            title = args.get("title", "")
+            content = f"/rename {title}" if title else "/rename"
+        elif command == "backend":
+            name = args.get("name", "")
+            content = f"/backend {name}" if name else "/backend"
+        elif command == "model":
+            name = args.get("name", "")
+            content = f"/model {name}" if name else "/model"
+        elif command == "tools":
+            name = args.get("name", "")
+            content = f"/tools {name}" if name else "/tools"
+        elif command in (
+            "new",
+            "sessions",
+            "clear",
+            "status",
+            "help",
+            "kill",
+            "delete",
+            "backends",
+        ):
             content = f"/{command}"
         else:
             content = f"/{command}"
