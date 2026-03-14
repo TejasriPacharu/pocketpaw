@@ -44,7 +44,7 @@ async def _start_channel_adapter(channel: str, settings: Settings | None = None)
     if channel == "discord":
         if not settings.discord_bot_token:
             return False
-        from pocketpaw.bus.adapters.discord_adapter import DiscordAdapter
+        from pocketpaw.bus.adapters.discord_adapter import DiscliAdapter as DiscordAdapter
 
         adapter = DiscordAdapter(
             token=settings.discord_bot_token,
