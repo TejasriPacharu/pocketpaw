@@ -569,6 +569,63 @@ async def test_handle_slash_unauthorized(adapter, bus):
     )
 
 
+async def test_handle_slash_converse_enable(adapter, bus):
+    adapter._on_start = AsyncMock()
+    adapter._on_stop = AsyncMock()
+    await adapter.start(bus)
+    adapter._send_command = AsyncMock(return_value={"ok": True})
+
+    assert 100 not in adapter.conversation_channel_ids
+
+    await adapter._handle_slash_event(
+        {
+            "command": "converse",
+            "args": {},
+            "channel_id": "100",
+            "user_id": "999",
+            "guild_id": "111",
+            "interaction_token": "tok_conv",
+        }
+    )
+
+    assert 100 in adapter.conversation_channel_ids
+    assert bus.inbound_pending() == 0  # handled locally, not forwarded
+    adapter._send_command.assert_called_once()
+    call_args = adapter._send_command.call_args
+    assert "enabled" in call_args[1]["content"].lower()
+
+
+async def test_handle_slash_converse_disable(bus):
+    a = DiscliAdapter(
+        token="test-token",
+        allowed_guild_ids=[111],
+        allowed_user_ids=[999],
+        conversation_channel_ids=[100],
+    )
+    a._on_start = AsyncMock()
+    a._on_stop = AsyncMock()
+    await a.start(bus)
+    a._send_command = AsyncMock(return_value={"ok": True})
+
+    assert 100 in a.conversation_channel_ids
+
+    await a._handle_slash_event(
+        {
+            "command": "converse",
+            "args": {},
+            "channel_id": "100",
+            "user_id": "999",
+            "guild_id": "111",
+            "interaction_token": "tok_conv2",
+        }
+    )
+
+    assert 100 not in a.conversation_channel_ids
+    assert bus.inbound_pending() == 0
+    call_args = a._send_command.call_args
+    assert "disabled" in call_args[1]["content"].lower()
+
+
 # ── _send_command / _read_stdout communication ──────────────────────
 
 

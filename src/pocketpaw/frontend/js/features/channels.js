@@ -398,6 +398,12 @@ window.PocketPaw.Channels = {
                         });
                     } else if (data.error) {
                         this.showToast(data.error, 'error');
+                    } else if (data.starting) {
+                        // Adapter is starting in the background, poll until running
+                        this._startingInBackground = true;
+                        const label = channel.charAt(0).toUpperCase() + channel.slice(1);
+                        this.showToast(`${label} starting...`, 'info');
+                        this._pollChannelStart(channel);
                     } else {
                         const label = channel.charAt(0).toUpperCase() + channel.slice(1);
                         this.showToast(
@@ -419,12 +425,44 @@ window.PocketPaw.Channels = {
                     }
                 } catch (e) {
                     this.showToast('Failed to toggle channel: ' + e.message, 'error');
+                    this._startingInBackground = false;
                 } finally {
-                    this.channelLoading = false;
+                    // Keep loading spinner while polling a background start
+                    if (!this._startingInBackground) {
+                        this.channelLoading = false;
+                    }
                     this.$nextTick(() => {
                         if (window.refreshIcons) window.refreshIcons();
                     });
                 }
+            },
+
+            /**
+             * Poll channel status until it's running or timeout (45s).
+             */
+            _pollChannelStart(channel, attempts = 0) {
+                if (attempts > 15) {
+                    const label = channel.charAt(0).toUpperCase() + channel.slice(1);
+                    this.showToast(`${label} failed to start. Check logs.`, 'error');
+                    this._startingInBackground = false;
+                    this.channelLoading = false;
+                    this.getChannelStatus();
+                    return;
+                }
+                setTimeout(async () => {
+                    await this.getChannelStatus();
+                    if (this.channelStatus[channel]?.running) {
+                        const label = channel.charAt(0).toUpperCase() + channel.slice(1);
+                        this.showToast(`${label} started!`, 'success');
+                        this._startingInBackground = false;
+                        this.channelLoading = false;
+                        if (channel === 'whatsapp') {
+                            this.startWhatsAppQrPollingIfNeeded();
+                        }
+                    } else {
+                        this._pollChannelStart(channel, attempts + 1);
+                    }
+                }, 3000);
             },
 
             /**
