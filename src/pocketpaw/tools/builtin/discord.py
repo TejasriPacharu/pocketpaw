@@ -54,7 +54,10 @@ class DiscordCLITool(BaseTool):
                         '  channel list --server "My Server"\n'
                         '  channel create "My Server" new-channel --type text\n'
                         "  thread list #general\n"
+                        '  thread create #general 123456789 "Thread Name"\n'
                         '  thread send 987654321 "Following up"\n'
+                        '  poll create #general "Favorite AI?" Claude Gemini ChatGPT\n'
+                        '  poll create #general "Best language?" Python Rust Go --multiple\n'
                         "  reaction add #general 123456789 👍\n"
                         '  role list "My Server"\n'
                         '  role assign "My Server" alice Moderator\n'

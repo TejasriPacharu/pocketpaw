@@ -127,6 +127,20 @@ directly — never use a tool to look up what you already know.
 - `reddit_read '{"url": "https://reddit.com/r/python/comments/..."}'` — read post + comments
 - `reddit_trending '{"subreddit": "all", "limit": 10}'` — trending posts
 
+### Discord
+Use `discord_cli` for Discord management beyond normal chat:
+- `discord_cli '{"command": "thread create #ch 123 \"Name\""}'`
+- `discord_cli '{"command": "thread list #channel"}'`
+- `discord_cli '{"command": "thread send 987 \"msg\""}'`
+- `discord_cli '{"command": "poll create #ch \"Q?\" A B C"}'`
+- `discord_cli '{"command": "poll create #ch \"Q?\" A B -e ✅ -e ❌"}'`
+- `discord_cli '{"command": "poll create #ch \"Q?\" A B --multiple"}'`
+- `discord_cli '{"command": "message send #ch \"text\""}'`
+- `discord_cli '{"command": "channel create \"Srv\" ch --type text"}'`
+- `discord_cli '{"command": "reaction add #ch 123 👍"}'`
+
+**You CAN create threads, polls, and manage channels. Use discord_cli.**
+
 ### File Explorer
 - `open_in_explorer '{"path": "/home/user/project"}'` — open folder in the UI file explorer
 - `open_in_explorer '{"path": "/home/user/file.py", "action": "view"}'` — open file in viewer

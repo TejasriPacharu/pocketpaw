@@ -100,11 +100,13 @@ class DiscliAdapter(BaseChannelAdapter):
         if slash_file:
             cmd += ["--slash-commands", slash_file]
 
-        env = {"DISCORD_BOT_TOKEN": self.token}
-
-        # Merge current env
         import os
 
+        env = {
+            "DISCORD_BOT_TOKEN": self.token,
+            # Force unbuffered stdout so JSONL events arrive immediately
+            "PYTHONUNBUFFERED": "1",
+        }
         full_env = {**os.environ, **env}
 
         self._proc = await asyncio.create_subprocess_exec(
@@ -132,6 +134,51 @@ class DiscliAdapter(BaseChannelAdapter):
             raise RuntimeError("discli serve failed to connect — check token and intents")
 
         logger.info("Discli Adapter started (bot: %s)", self._bot_id)
+
+    async def _write_slash_config(self) -> str | None:
+        """Write slash command definitions to a temp file."""
+        import tempfile
+
+        commands = [
+            {
+                "name": "paw",
+                "description": "Send a message to PocketPaw",
+                "params": [
+                    {
+                        "name": "message",
+                        "type": "string",
+                        "description": "Your message",
+                    }
+                ],
+            },
+            {"name": "new", "description": "Start a fresh conversation"},
+            {"name": "sessions", "description": "List your conversation sessions"},
+            {
+                "name": "resume",
+                "description": "Resume a previous session",
+                "params": [
+                    {
+                        "name": "target",
+                        "type": "string",
+                        "description": "Session name or number",
+                        "required": False,
+                    }
+                ],
+            },
+            {"name": "clear", "description": "Clear the current session history"},
+            {"name": "status", "description": "Show current session info"},
+            {"name": "help", "description": "Show PocketPaw help"},
+            {"name": "kill", "description": "Cancel the current request"},
+            {
+                "name": "converse",
+                "description": "Toggle conversation mode in this channel",
+            },
+        ]
+
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(commands, f)
+        f.close()
+        return f.name
 
     async def _drain_stderr(self) -> None:
         """Read and log stderr to prevent pipe buffer from blocking the process."""
@@ -166,36 +213,6 @@ class DiscliAdapter(BaseChannelAdapter):
         self._conversation_history.clear()
         self._conversation_last_active.clear()
         logger.info("Discli Adapter stopped")
-
-    async def _write_slash_config(self) -> str | None:
-        """Write slash command definitions to a temp file."""
-        import tempfile
-
-        commands = [
-            {
-                "name": "paw",
-                "description": "Send a message to PocketPaw",
-                "params": [{"name": "message", "type": "string", "description": "Your message"}],
-            },
-            {"name": "new", "description": "Start a fresh conversation"},
-            {"name": "sessions", "description": "List your conversation sessions"},
-            {
-                "name": "resume",
-                "description": "Resume a previous session",
-                "params": [
-                    {"name": "target", "type": "string", "description": "Session name or number"}
-                ],
-            },
-            {"name": "clear", "description": "Clear the current session history"},
-            {"name": "status", "description": "Show current session info"},
-            {"name": "help", "description": "Show PocketPaw help"},
-            {"name": "kill", "description": "Cancel the current request"},
-        ]
-
-        f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
-        json.dump(commands, f)
-        f.close()
-        return f.name
 
     # ── stdin/stdout Communication ──────────────────────────────────
 
@@ -252,13 +269,15 @@ class DiscliAdapter(BaseChannelAdapter):
                         future.set_result(data)
                     continue
 
-                # Handle events
+                # Handle events — fire as tasks to avoid deadlocking
+                # the reader (handlers may call _send_command which reads
+                # from the same stdout this loop consumes).
                 if event == "ready":
                     self._bot_id = data.get("bot_id")
                 elif event == "message":
-                    await self._handle_message_event(data)
+                    asyncio.create_task(self._handle_message_event(data))
                 elif event == "slash_command":
-                    await self._handle_slash_event(data)
+                    asyncio.create_task(self._handle_slash_event(data))
                 elif event == "error":
                     logger.error("discli serve error: %s", data.get("message"))
 
@@ -389,6 +408,27 @@ class DiscliAdapter(BaseChannelAdapter):
                 "interaction_followup",
                 interaction_token=interaction_token,
                 content="Unauthorized.",
+            )
+            return
+
+        # Handle /converse locally (toggle conversation mode for this channel)
+        if command == "converse":
+            ch_id = int(channel_id)
+            if ch_id in self.conversation_channel_ids:
+                self.conversation_channel_ids.remove(ch_id)
+                self._conversation_history.pop(ch_id, None)
+                self._conversation_last_active.pop(ch_id, None)
+                reply = "Conversation mode **disabled** for this channel."
+            else:
+                self.conversation_channel_ids.append(ch_id)
+                reply = (
+                    "Conversation mode **enabled** for this channel. "
+                    f"I'll respond when mentioned or addressed as {self.bot_name}."
+                )
+            await self._send_command(
+                "interaction_followup",
+                interaction_token=interaction_token,
+                content=reply,
             )
             return
 
