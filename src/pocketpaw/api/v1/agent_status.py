@@ -13,7 +13,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Status"])
 
-_DEBOUNCE_MS = 200
+_DEBOUNCE_MS = 1000
+
+
+def _snapshot_fingerprint(snap: dict) -> tuple:
+    """Extract a comparable fingerprint from a snapshot (ignores timing fields)."""
+    global_state = snap["global"]["state"]
+    sessions = tuple(
+        (s["session_key"], s["state"], s["tool_name"]) for s in snap.get("sessions", [])
+    )
+    return (global_state, sessions)
 
 
 def _get_status_api_key() -> str:
@@ -69,6 +78,7 @@ async def agent_status_stream(request: Request, key: str | None = Query(None)):
             # Send initial snapshot immediately
             snap = status_tracker.snapshot()
             last_version = status_tracker.version
+            last_fp = _snapshot_fingerprint(snap)
             yield f"event: status\ndata: {json.dumps(snap)}\n\n"
 
             while True:
@@ -78,11 +88,15 @@ async def agent_status_stream(request: Request, key: str | None = Query(None)):
                     since_version=last_version, timeout=30.0
                 )
                 if changed:
-                    # Debounce: wait a bit for rapid successive events to settle
+                    # Debounce: wait for rapid successive events to settle
                     await asyncio.sleep(_DEBOUNCE_MS / 1000)
                     snap = status_tracker.snapshot()
                     last_version = status_tracker.version
-                    yield f"event: status\ndata: {json.dumps(snap)}\n\n"
+                    fp = _snapshot_fingerprint(snap)
+                    # Skip sending if state hasn't meaningfully changed
+                    if fp != last_fp:
+                        last_fp = fp
+                        yield f"event: status\ndata: {json.dumps(snap)}\n\n"
                 else:
                     # Keepalive every 30s
                     yield ": keepalive\n\n"

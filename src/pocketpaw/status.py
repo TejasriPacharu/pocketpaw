@@ -92,7 +92,7 @@ class StatusTracker:
 
         elif etype == "thinking":
             s = self._sessions.get(session_key)
-            if s:
+            if s and s.state != "thinking":
                 s.state = "thinking"
                 s.tool_name = None
                 s.state_changed_at = now
