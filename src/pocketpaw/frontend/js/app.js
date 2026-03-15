@@ -139,6 +139,10 @@ function app() {
             soulAutoSaveInterval: 300,
         },
 
+        // Soul import state
+        soulImportStatus: '',
+        soulImportError: false,
+
         // API Keys (not persisted client-side, but we track if saved on server)
         apiKeys: {
             anthropic: '',
@@ -602,6 +606,68 @@ function app() {
          */
         saveSettings() {
             socket.saveSettings(this.settings);
+        },
+
+        /**
+         * Import a soul from an uploaded file (.soul, .yaml, .yml, .json)
+         */
+        async importSoulFile(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            this.soulImportStatus = 'Importing...';
+            this.soulImportError = false;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const resp = await fetch('/api/v1/soul/import', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    this.soulImportStatus = data.error;
+                    this.soulImportError = true;
+                } else {
+                    this.soulImportStatus = `Imported "${data.name}" successfully`;
+                    this.soulImportError = false;
+                    // Update the soul name in settings to reflect the imported soul
+                    if (data.name) {
+                        this.settings.soulName = data.name;
+                    }
+                }
+            } catch (err) {
+                this.soulImportStatus = `Import failed: ${err.message}`;
+                this.soulImportError = true;
+            }
+
+            // Clear the file input so the same file can be re-selected
+            event.target.value = '';
+        },
+
+        /**
+         * Export the current soul to a .soul file
+         */
+        async exportSoulFile() {
+            this.soulImportStatus = 'Exporting...';
+            this.soulImportError = false;
+
+            try {
+                const resp = await fetch('/api/v1/soul/export', { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) {
+                    this.soulImportStatus = data.error;
+                    this.soulImportError = true;
+                } else {
+                    this.soulImportStatus = `Exported to ${data.path}`;
+                    this.soulImportError = false;
+                }
+            } catch (err) {
+                this.soulImportStatus = `Export failed: ${err.message}`;
+                this.soulImportError = true;
+            }
         },
 
         /**
