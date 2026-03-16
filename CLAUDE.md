@@ -98,7 +98,7 @@ The processing pipeline lives in `agents/loop.py` and `agents/router.py`:
 
 - `TelegramAdapter` — python-telegram-bot
 - `WebSocketAdapter` — FastAPI WebSockets
-- `DiscordAdapter` — discord.py (optional dep `pocketpaw[discord]`). Slash command `/paw` + DM/mention support. Stream buffering with edit-in-place (1.5s rate limit).
+- `DiscliAdapter` — `discord-cli-agent` subprocess wrapper (optional dep `pocketpaw[discord]`). Slash command `/paw` + DM/mention support. Stream buffering with edit-in-place (1.5s rate limit). Auto-registers a `pocketpaw-discord` MCP server on startup exposing Discord operations to all MCP-capable backends. Admin commands (`/converse`, `/setstatus`, etc.) require Administrator or Manage Server permission.
 - `SlackAdapter` — slack-bolt Socket Mode (optional dep `pocketpaw[slack]`). Handles `app_mention` + DM events. No public URL needed. Thread support via `thread_ts` metadata.
 - `WhatsAppAdapter` — WhatsApp Business Cloud API via `httpx` (core dep). No streaming; accumulates chunks and sends on `stream_end`. Dashboard exposes `/webhook/whatsapp` routes; standalone mode runs its own FastAPI server.
 
