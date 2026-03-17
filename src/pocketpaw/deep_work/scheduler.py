@@ -14,13 +14,9 @@ import asyncio
 import logging
 from collections import deque
 
-from pocketpaw.mission_control.models import DONE_STATUSES, Task, TaskStatus, now_iso
+from pocketpaw.mission_control.models import Task, TaskStatus, now_iso
 
 logger = logging.getLogger(__name__)
-
-# Frozenset for O(1) membership tests used in hot loops
-_PENDING_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.INBOX, TaskStatus.ASSIGNED})
-
 
 def _get_id(item) -> str:
     """Extract the identifier from a Task (.id) or TaskSpec (.key)."""
@@ -70,12 +66,14 @@ class DependencyScheduler:
         """
         project_tasks = await self.manager.get_project_tasks(project_id)
         resolved_ids = {
-            t.id for t in project_tasks if t.status in DONE_STATUSES
+            t.id
+            for t in project_tasks
+            if t.status in (TaskStatus.DONE, TaskStatus.SKIPPED)
         }
 
         ready = []
         for task in project_tasks:
-            if task.status not in _PENDING_STATUSES:
+            if task.status not in (TaskStatus.INBOX, TaskStatus.ASSIGNED):
                 continue
             if not task.blocked_by or all(bid in resolved_ids for bid in task.blocked_by):
                 ready.append(task)
@@ -155,7 +153,7 @@ class DependencyScheduler:
         if not project_tasks:
             return False
 
-        all_done = all(t.status in DONE_STATUSES for t in project_tasks)
+        all_done = all(t.status in (TaskStatus.DONE, TaskStatus.SKIPPED) for t in project_tasks)
         if all_done:
             project = await self.manager.get_project(project_id)
             if project:

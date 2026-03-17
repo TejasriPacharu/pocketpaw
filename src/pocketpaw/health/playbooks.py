@@ -9,7 +9,6 @@ from __future__ import annotations
 _API_KEY_CHECK_IDS: frozenset[str] = frozenset(
     {"api_key_primary", "api_key_format", "secrets_encrypted"}
 )
-_BACKEND_CHECK_IDS: frozenset[str] = frozenset({"backend_deps", "api_key_primary"})
 
 PLAYBOOKS: dict[str, dict] = {
     "api_key_primary": {
@@ -143,7 +142,10 @@ def diagnose_config(section: str = "") -> str:
             if section:
                 if section == "api_keys" and result.check_id not in _API_KEY_CHECK_IDS:
                     continue
-                elif section == "backend" and result.check_id not in _BACKEND_CHECK_IDS:
+                elif section == "backend" and result.check_id not in (
+                    "backend_deps",
+                    "api_key_primary",
+                ):
                     continue
                 elif section == "storage" and result.category != "storage":
                     continue

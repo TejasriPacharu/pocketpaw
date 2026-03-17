@@ -29,10 +29,6 @@ _active_streams: dict[str, asyncio.Event] = {}
 
 _WS_PREFIX = "websocket_"
 
-# SSE terminal event types
-_STREAM_TERMINAL_EVENTS: frozenset[str] = frozenset({"stream_end", "error"})
-
-
 def _extract_chat_id(session_id: str | None) -> str:
     """Convert a client-supplied session_id to a raw chat_id for the message bus.
 
@@ -300,7 +296,7 @@ async def chat_stream(body: ChatRequest):
 
                 yield f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
 
-                if event["event"] in _STREAM_TERMINAL_EVENTS:
+                if event["event"] in ("stream_end", "error"):
                     break
         finally:
             await bridge.stop()

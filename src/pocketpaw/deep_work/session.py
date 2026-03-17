@@ -29,7 +29,6 @@ from pocketpaw.deep_work.planner import PlannerAgent
 from pocketpaw.deep_work.scheduler import DependencyScheduler
 from pocketpaw.mission_control.manager import MissionControlManager
 from pocketpaw.mission_control.models import (
-    DONE_STATUSES,
     DocumentType,
     TaskPriority,
     TaskStatus,
@@ -480,7 +479,7 @@ class DeepWorkSession:
         # Mark all non-completed tasks as SKIPPED
         tasks = await self.manager.get_project_tasks(project_id)
         for task in tasks:
-            if task.status not in DONE_STATUSES:
+            if task.status not in (TaskStatus.DONE, TaskStatus.SKIPPED):
                 task.status = TaskStatus.SKIPPED
                 task.updated_at = now_iso()
                 task.error_message = "Project cancelled"

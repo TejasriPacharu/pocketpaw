@@ -68,10 +68,6 @@ class TaskStatus(StrEnum):
     SKIPPED = "skipped"  # Manually skipped by user
 
 
-# Public frozenset for O(1) membership tests across modules
-DONE_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.DONE, TaskStatus.SKIPPED})
-
-
 class TaskPriority(StrEnum):
     """Task priority level."""
 

@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from pocketpaw.deep_work.models import Project
 
 from pocketpaw.mission_control.models import (
-    DONE_STATUSES,
     Activity,
     ActivityType,
     AgentProfile,
@@ -675,7 +674,8 @@ class MissionControlManager:
             [
                 t
                 for t in tasks
-                if t.task_type == "human" and t.status not in DONE_STATUSES
+                if t.task_type == "human"
+                and t.status not in (TaskStatus.DONE, TaskStatus.SKIPPED)
             ]
         )
         percent = ((completed + skipped) / total * 100) if total > 0 else 0.0

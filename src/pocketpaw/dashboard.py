@@ -47,7 +47,6 @@ except ImportError as _exc:
 
 import pocketpaw.dashboard_state as _state
 from pocketpaw.api.v1 import mount_v1_routers
-from pocketpaw.api.v1.sessions import EXPORT_FORMATS
 from pocketpaw.bootstrap import DefaultBootstrapProvider
 from pocketpaw.config import Settings, get_access_token, get_config_path
 from pocketpaw.dashboard_auth import (
@@ -1328,7 +1327,7 @@ async def export_session(id: str = "", format: str = "json"):
     if not id:
         raise HTTPException(status_code=400, detail="Missing required parameter: id")
 
-    if format not in EXPORT_FORMATS:
+    if format not in ("json", "md"):
         raise HTTPException(status_code=400, detail="Format must be 'json' or 'md'")
 
     manager = get_memory_manager()
