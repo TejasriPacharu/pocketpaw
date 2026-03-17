@@ -695,6 +695,12 @@ class Settings(BaseSettings):
     web_host: str = Field(default="127.0.0.1", description="Web server host")
     web_port: int = Field(default=8888, description="Web server port")
 
+    # A2A Protocol
+    a2a_enabled: bool = Field(
+        default=False,
+        description="Enable the A2A Protocol remote endpoints (allow external delegates)",
+    )
+
     # MCP OAuth
     mcp_client_metadata_url: str = Field(
         default="",
