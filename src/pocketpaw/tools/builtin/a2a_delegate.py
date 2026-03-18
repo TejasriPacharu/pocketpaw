@@ -109,12 +109,6 @@ class A2ADelegateTool(BaseTool):
                     f"Ensure the agent is running and supports A2A."
                 )
 
-            # Ensure the remote agent advertises at least some capability
-            if not card.capabilities.streaming and not card.skills:
-                return self._error(
-                    f"Agent at {agent_url} advertises no usable capabilities/skills."
-                )
-
             # 2. Support multi-turn by fetching history if task_id provided
             history_messages: list[A2AMessage] = []
             if task_id:
@@ -128,7 +122,7 @@ class A2ADelegateTool(BaseTool):
 
                     # Preserve the message-level structure so the remote agent can
                     # distinguish its own previous responses from user turns.
-                    # DO NOT flatten parts across messages — that loses role info.
+                    # DO NOT flatten parts across messages. That loses role info.
                     history_messages = list(existing_task.history)
                 except Exception as e:
                     return self._error(

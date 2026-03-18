@@ -19,11 +19,19 @@ def _handle_response(response: httpx.Response) -> bytes:
     return response.content
 
 
+def _check_stream_status(response: httpx.Response) -> None:
+    """Status-only check for streaming/void responses. Never reads .content or .text."""
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"A2A remote agent error {e.response.status_code}") from e
+
+
 class A2AClient:
     """Asynchronous client for interacting with external A2A agents.
 
     Can be used as an async context manager to share a single
-    ``httpx.AsyncClient`` across multiple calls — useful for multi-turn
+    ``httpx.AsyncClient`` across multiple calls. This is useful for multi-turn
     workflows where opening a new TCP connection per request adds latency::
 
         async with A2AClient() as client:
@@ -39,7 +47,7 @@ class A2AClient:
         self._shared_client: httpx.AsyncClient | None = None
 
     # ------------------------------------------------------------------
-    # Async context manager — shared persistent connection
+    # Async context manager: shared persistent connection
     # ------------------------------------------------------------------
 
     async def __aenter__(self) -> A2AClient:
@@ -90,7 +98,7 @@ class A2AClient:
         payload = params.model_dump(mode="json", exclude_none=True)
         async with self._get_client() as client:
             async with client.stream("POST", url, json=payload) as response:
-                _handle_response(response)
+                _check_stream_status(response)
                 async for line in response.aiter_lines():
                     if line.startswith("data:"):
                         yield line[5:].strip()
@@ -108,4 +116,4 @@ class A2AClient:
         url = f"{base_url.rstrip('/')}/a2a/tasks/{task_id}/cancel"
         async with self._get_client() as client:
             response = await client.post(url)
-            _handle_response(response)
+            _check_stream_status(response)
