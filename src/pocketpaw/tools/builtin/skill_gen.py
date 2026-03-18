@@ -140,6 +140,11 @@ class CreateSkillTool(BaseTool):
             from pocketpaw.memory.manager import get_memory_manager
 
             mm = get_memory_manager()
+            # Remove stale entry for this skill (if recreated with different description)
+            existing = await mm.search(f"Skill: {skill_name}", limit=5)
+            for entry in existing:
+                if entry.metadata.get("header") == f"Skill: {skill_name}":
+                    await mm.delete(entry.id)
             await mm.remember(
                 f"Created skill '{skill_name}': {description}. "
                 f"Saved at {skill_file}. User invocable: {user_invocable}.",

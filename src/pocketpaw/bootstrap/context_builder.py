@@ -173,18 +173,19 @@ class AgentContextBuilder:
             from pocketpaw.skills import get_skill_loader
 
             loader = get_skill_loader()
-            skills = loader.reload()
+            skills = loader.get_all()
             if skills:
                 skill_lines = []
                 for s in skills.values():
                     invocable = " (user-invocable)" if s.user_invocable else ""
                     skill_lines.append(f"- **{s.name}**: {s.description}{invocable}")
+                search_dirs = ", ".join(str(p) for p in loader.paths)
                 parts.append(
                     "\n# Available Skills\n"
                     "The following skills have been created and are available. "
                     "Do NOT recreate them or forget they exist.\n"
                     + "\n".join(skill_lines)
-                    + f"\n\nSkills directory: {loader.paths[-1]}"
+                    + f"\n\nSkills directories: {search_dirs}"
                 )
         except Exception as exc:
             logger.debug("Skill injection skipped: %s", exc)
