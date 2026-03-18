@@ -498,6 +498,10 @@ class Settings(BaseSettings):
         default_factory=list,
         description="Additional CORS origins for external clients (e.g. tauri://localhost)",
     )
+    a2a_trusted_agents: list[str] = Field(
+        default_factory=list,
+        description="Explicitly allowed A2A agent base URLs for task delegation (prevents SSRF)",
+    )
     api_rate_limit_per_key: int = Field(
         default=60,
         gt=0,
@@ -706,6 +710,28 @@ class Settings(BaseSettings):
     # Web Server
     web_host: str = Field(default="127.0.0.1", description="Web server host")
     web_port: int = Field(default=8888, description="Web server port")
+
+    # A2A Protocol
+    a2a_enabled: bool = Field(
+        default=False,
+        description="Enable the A2A Protocol remote endpoints (allow external delegates)",
+    )
+    a2a_agent_name: str = Field(
+        default="PocketPaw",
+        description="Agent name advertised in the A2A Agent Card",
+    )
+    a2a_agent_description: str = Field(
+        default="",
+        description="Agent description for A2A Agent Card (empty = default)",
+    )
+    a2a_agent_version: str = Field(
+        default="",
+        description="Agent version for A2A Agent Card (empty = auto-detect from package)",
+    )
+    a2a_task_timeout: int = Field(
+        default=120,
+        description="Timeout in seconds for A2A task processing",
+    )
 
     # MCP OAuth
     mcp_client_metadata_url: str = Field(
