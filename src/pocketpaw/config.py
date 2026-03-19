@@ -790,6 +790,21 @@ class Settings(BaseSettings):
         default=300,
         description="Auto-save soul state interval in seconds (0 = disabled)",
     )
+    soul_biorhythm: dict[str, float] = Field(
+        default_factory=lambda: {
+            "energy_drain_rate": 0.02,
+            "mood_inertia": 0.8,
+            "tired_threshold": 0.3,
+            "auto_regen": 0.01,
+        },
+        description=(
+            "Biorhythm configuration for soul energy/mood dynamics (v0.2.4+). "
+            "energy_drain_rate: how fast energy depletes per interaction. "
+            "mood_inertia: resistance to mood change (0-1). "
+            "tired_threshold: energy level that triggers fatigue. "
+            "auto_regen: passive energy recovery rate."
+        ),
+    )
 
     notification_channels: list[str] = Field(
         default_factory=list,
