@@ -771,10 +771,18 @@ class AgentLoop:
                 )
 
                 # 6. Auto-learn: extract facts from conversation (non-blocking)
-                # Skip auto-learn on cancelled responses — partial data is unreliable
-                should_auto_learn = not cancelled and (
-                    (self.settings.memory_backend == "mem0" and self.settings.mem0_auto_learn)
-                    or (self.settings.memory_backend == "file" and self.settings.file_auto_learn)
+                # Skip auto-learn on cancelled responses — partial data is unreliable.
+                # Also skip when soul is active — soul.observe() + reflect() handles
+                # fact extraction and memory consolidation, so auto_learn would duplicate.
+                should_auto_learn = (
+                    not cancelled
+                    and self._soul_manager is None
+                    and (
+                        (self.settings.memory_backend == "mem0" and self.settings.mem0_auto_learn)
+                        or (
+                            self.settings.memory_backend == "file" and self.settings.file_auto_learn
+                        )
+                    )
                 )
                 if should_auto_learn:
                     t = asyncio.create_task(

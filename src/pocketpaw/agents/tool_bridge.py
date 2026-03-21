@@ -73,12 +73,14 @@ def _instantiate_all_tools(backend: str = "claude_agent_sdk") -> list[BaseTool]:
         except Exception as exc:
             logger.debug("Skipping tool %s: %s", class_name, exc)
 
-    # Inject soul tools if soul is active
+    # Inject soul tools if soul is active — and exclude regular memory tools
+    # to avoid overlap (soul_remember/soul_recall supersede remember/recall/forget).
     try:
         from pocketpaw.soul.manager import get_soul_manager
 
         soul_mgr = get_soul_manager()
         if soul_mgr is not None:
+            tools = [t for t in tools if t.name not in ("remember", "recall", "forget")]
             tools.extend(soul_mgr.get_tools())
     except Exception:
         pass  # Soul not available
