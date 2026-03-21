@@ -751,6 +751,7 @@ class ClaudeSDKBackend:
             # ── API key check for Anthropic provider ──────────────
             # Skip if using a non-Anthropic provider, or if the active
             # provider is claude_code (it handles OAuth auth via its CLI).
+            is_claude_code_provider = provider in ("claude_code", "claude_agent_sdk")
             is_non_anthropic = (
                 llm.is_ollama
                 or llm.is_openai_compatible
@@ -758,25 +759,24 @@ class ClaudeSDKBackend:
                 or llm.is_litellm
                 or llm.is_openrouter
             )
-            # NOTE: API key check temporarily bypassed
-            # if not is_non_anthropic:
-            #     has_api_key = bool(llm.api_key or os.environ.get("ANTHROPIC_API_KEY"))
-            #     if not has_api_key and not is_claude_code_provider:
-            #         yield AgentEvent(
-            #             type="error",
-            #             content=(
-            #                 "**API key required** -- The Claude SDK backend needs "
-            #                 "an Anthropic API key.\n\n"
-            #                 "**How to fix:**\n"
-            #                 "1. Get an API key at "
-            #                 "[console.anthropic.com](https://console.anthropic.com/settings/keys)\n"
-            #                 "2. Add it in **Settings > API Keys > Anthropic API Key**\n"
-            #                 "3. Or set the `ANTHROPIC_API_KEY` environment variable\n\n"
-            #                 "*Alternatively, switch to **Ollama (Local)** in Settings "
-            #                 "> General for free local inference.*"
-            #             ),
-            #         )
-            #         return
+            if not is_non_anthropic:
+                has_api_key = bool(llm.api_key or os.environ.get("ANTHROPIC_API_KEY"))
+                if not has_api_key and not is_claude_code_provider:
+                    yield AgentEvent(
+                        type="error",
+                        content=(
+                            "**API key required** -- The Claude SDK backend needs "
+                            "an Anthropic API key.\n\n"
+                            "**How to fix:**\n"
+                            "1. Get an API key at "
+                            "[console.anthropic.com](https://console.anthropic.com/settings/keys)\n"
+                            "2. Add it in **Settings > API Keys > Anthropic API Key**\n"
+                            "3. Or set the `ANTHROPIC_API_KEY` environment variable\n\n"
+                            "*Alternatively, switch to **Ollama (Local)** in Settings "
+                            "> General for free local inference.*"
+                        ),
+                    )
+                    return
 
             # Smart model routing — classify BEFORE prompt composition so we
             # can skip tool instructions for SIMPLE messages and dispatch to
