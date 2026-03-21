@@ -918,9 +918,16 @@ async def get_version_info():
     return info or {"current": current, "latest": current, "update_available": False}
 
 
+# Cache the SvelteKit index.html on first read — it only changes on redeploy.
+_svelte_index_cache: str | None = None
+
+
 def _serve_svelte_html(request: Request, html_path: Path) -> Response:
     """Read an HTML file from the SvelteKit build and inject the auth token for localhost."""
-    html = html_path.read_text()
+    global _svelte_index_cache
+    if _svelte_index_cache is None:
+        _svelte_index_cache = html_path.read_text()
+    html = _svelte_index_cache
     if _is_genuine_localhost(request):
         token = get_access_token()
         html = html.replace(
@@ -1725,8 +1732,7 @@ async def svelte_catch_all(request: Request, full_path: str):
     """Serve SvelteKit static files or fall back to index.html for SPA routing."""
     from starlette.responses import FileResponse
 
-    settings = Settings.load()
-    if settings.frontend != "svelte" or not WEBAPP_DIR.exists():
+    if get_settings().frontend != "svelte" or not WEBAPP_DIR.exists():
         raise HTTPException(status_code=404, detail="Not found")
 
     # Try to serve an exact file match (favicon.png, robots.txt, etc.)

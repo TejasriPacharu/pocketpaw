@@ -9,6 +9,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLIENT_DIR="$REPO_ROOT/client"
 WEBAPP_DIR="$REPO_ROOT/src/pocketpaw/webapp"
 
+if ! command -v bun &>/dev/null; then
+    echo "Error: bun is required but not installed. Install from https://bun.sh" >&2
+    exit 1
+fi
+
 echo "Building SvelteKit frontend..."
 cd "$CLIENT_DIR"
 bun install
