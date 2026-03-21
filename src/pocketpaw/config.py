@@ -1,6 +1,7 @@
 """Configuration management for PocketPaw.
 
 Changes:
+  - 2026-03-21: Added `frontend` field (Literal["svelte", "alpine"]) for SvelteKit serving.
   - 2026-03-16: Use Literal types for whatsapp_mode, tts_provider, stt_provider (#638).
   - 2026-02-17: Added health_check_on_startup field for Health Engine.
   - 2026-02-14: Add migration warning for old ~/.pocketclaw/ config dir and POCKETCLAW_ env vars.
@@ -746,6 +747,14 @@ class Settings(BaseSettings):
     # Web Server
     web_host: str = Field(default="127.0.0.1", description="Web server host")
     web_port: int = Field(default=8888, description="Web server port")
+    frontend: Literal["svelte", "alpine"] = Field(
+        default="alpine",
+        description=(
+            "Frontend to serve: 'svelte' (SvelteKit, requires running scripts/build-frontend.sh) "
+            "or 'alpine' (legacy Alpine.js dashboard). "
+            "Set via POCKETPAW_FRONTEND=svelte environment variable."
+        ),
+    )
 
     # A2A Protocol
     a2a_enabled: bool = Field(

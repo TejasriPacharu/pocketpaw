@@ -1,5 +1,9 @@
+// local.ts — LocalFileSystem provider using Tauri IPC with REST API fallback for web mode
+// Modified: 2026-03-21 — Added REST API fallbacks for readDir and readFileText when not running in Tauri
+
 import type { FileEntry, DefaultDirs, FileChangeEvent, FileSystemProvider, RecursiveSearchResult } from "./types";
 import { getThumbnail as getCachedThumbnail } from "./thumbnail-cache";
+import { API_BASE } from "$lib/api/config";
 
 /** Raw shape returned by the Rust fs_read_dir command */
 interface RawFileEntry {
@@ -36,6 +40,19 @@ interface RawFileStatExtended {
   is_symlink: boolean;
 }
 
+/** REST API response shape for /api/v1/files/browse */
+interface ApiBrowseEntry {
+  name: string;
+  isDir: boolean;
+  size: string;
+}
+
+interface ApiBrowseResponse {
+  path: string;
+  files: ApiBrowseEntry[];
+  error?: string | null;
+}
+
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -52,24 +69,74 @@ function mapEntry(raw: RawFileEntry): FileEntry {
   };
 }
 
+/** Map a REST API browse entry to a FileEntry (best-effort — path derived from parent + name) */
+function mapApiBrowseEntry(raw: ApiBrowseEntry, parentPath: string): FileEntry {
+  const sep = parentPath.endsWith("/") ? "" : "/";
+  return {
+    name: raw.name,
+    path: `${parentPath}${sep}${raw.name}`,
+    isDir: raw.isDir,
+    // REST API returns human-readable size string — convert back to approximate bytes
+    size: 0,
+    modified: 0,
+    extension: raw.isDir ? "" : (raw.name.includes(".") ? raw.name.split(".").pop() ?? "" : ""),
+    source: "local",
+  };
+}
+
 export class LocalFileSystem implements FileSystemProvider {
   scheme = "local" as const;
 
   async readDir(path: string): Promise<FileEntry[]> {
-    if (!isTauri()) return [];
+    if (!isTauri()) {
+      // Web mode: fall back to the REST browse endpoint
+      try {
+        const url = `${API_BASE}/files/browse?path=${encodeURIComponent(path)}`;
+        const resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) return [];
+        const data: ApiBrowseResponse = await resp.json();
+        if (data.error) return [];
+        return (data.files ?? []).map((e) => mapApiBrowseEntry(e, path));
+      } catch {
+        return [];
+      }
+    }
     const { invoke } = await import("@tauri-apps/api/core");
     const raw: RawFileEntry[] = await invoke("fs_read_dir", { path });
     return raw.map(mapEntry);
   }
 
   async readFileText(path: string): Promise<string> {
-    if (!isTauri()) return "";
+    if (!isTauri()) {
+      // Web mode: fall back to the REST content endpoint
+      try {
+        const url = `${API_BASE}/files/content?path=${encodeURIComponent(path)}`;
+        const resp = await fetch(url, { credentials: "include" });
+        if (!resp.ok) return "";
+        return resp.text();
+      } catch {
+        return "";
+      }
+    }
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("fs_read_file_text", { path });
   }
 
   async writeFile(path: string, content: string): Promise<void> {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      // Web mode: fall back to the REST write endpoint
+      try {
+        await fetch(`${API_BASE}/files/write`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path, content }),
+        });
+      } catch {
+        // Silently fail — caller can check by reading back
+      }
+      return;
+    }
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("fs_write_file", { path, content });
   }

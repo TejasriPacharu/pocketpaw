@@ -1,6 +1,10 @@
+<!--
+  TabAbout.svelte — About panel: version info, updates, system info, links
+  Modified: 2026-03-21 — Hide Tauri auto-updater in web mode; show pip upgrade instruction instead
+-->
 <script lang="ts">
   import type { VersionInfo } from "$lib/api";
-  import { connectionStore, settingsStore } from "$lib/stores";
+  import { connectionStore, settingsStore, platformStore } from "$lib/stores";
   import { onMount } from "svelte";
   import {
     Info,
@@ -10,6 +14,7 @@
     Download,
     CheckCircle,
     AlertCircle,
+    Terminal,
   } from "@lucide/svelte";
 
   let version = $state<VersionInfo | null>(null);
@@ -21,7 +26,7 @@
   let model = $derived(settingsStore.model || "unknown");
   let memoryBackend = $derived(settingsStore.settings?.memory_backend ?? "none");
 
-  // Update state
+  // Update state (desktop only — web users update via pip)
   type UpdateStatus = "idle" | "checking" | "available" | "downloading" | "ready" | "up-to-date" | "error";
   let updateStatus = $state<UpdateStatus>("idle");
   let updateVersion = $state("");
@@ -141,105 +146,124 @@
     <div class="flex flex-col gap-3">
       <h4 class="text-xs font-medium text-muted-foreground">Updates</h4>
 
-      <div class="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
-        {#if updateStatus === "idle"}
-          <button
-            onclick={checkForUpdates}
-            class="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <RefreshCw class="h-3.5 w-3.5" />
-            Check for Updates
-          </button>
-
-        {:else if updateStatus === "checking"}
-          <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground">
-            <Loader2 class="h-3.5 w-3.5 animate-spin" />
-            Checking for updates...
-          </div>
-
-        {:else if updateStatus === "up-to-date"}
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 text-xs text-emerald-500">
-              <CheckCircle class="h-3.5 w-3.5" />
-              You're up to date!
+      {#if platformStore.isWeb}
+        <!-- Web mode: auto-updater not available, guide to pip -->
+        <div class="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+          <div class="flex items-start gap-2">
+            <Terminal class="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-medium text-foreground">Update via terminal</span>
+              <p class="text-[11px] leading-relaxed text-muted-foreground">
+                To get the latest version, run this command and restart the server:
+              </p>
+              <code class="mt-1 rounded bg-muted px-2 py-1 font-mono text-[11px] text-foreground">
+                pip install --upgrade pocketpaw
+              </code>
             </div>
+          </div>
+        </div>
+      {:else}
+        <!-- Desktop mode: Tauri auto-updater -->
+        <div class="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+          {#if updateStatus === "idle"}
             <button
               onclick={checkForUpdates}
-              class="rounded-md px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              Check again
-            </button>
-          </div>
-
-        {:else if updateStatus === "available"}
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-foreground">
-                v{updateVersion} available
-              </span>
-            </div>
-            {#if updateNotes}
-              <p class="text-[11px] leading-relaxed text-muted-foreground line-clamp-3">
-                {updateNotes}
-              </p>
-            {/if}
-            <button
-              onclick={downloadAndInstall}
-              class="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              <Download class="h-3.5 w-3.5" />
-              Download & Install
-            </button>
-          </div>
-
-        {:else if updateStatus === "downloading"}
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 class="h-3.5 w-3.5 animate-spin" />
-              Downloading update... {downloadProgress}%
-            </div>
-            <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                class="h-full rounded-full bg-primary transition-all duration-300"
-                style={`width: ${downloadProgress}%`}
-              ></div>
-            </div>
-          </div>
-
-        {:else if updateStatus === "ready"}
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2 text-xs text-emerald-500">
-              <CheckCircle class="h-3.5 w-3.5" />
-              Update installed successfully
-            </div>
-            <button
-              onclick={restartApp}
               class="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <RefreshCw class="h-3.5 w-3.5" />
-              Restart Now
+              Check for Updates
             </button>
-          </div>
 
-        {:else if updateStatus === "error"}
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2 text-xs text-destructive">
-              <AlertCircle class="h-3.5 w-3.5" />
-              Update check failed
+          {:else if updateStatus === "checking"}
+            <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground">
+              <Loader2 class="h-3.5 w-3.5 animate-spin" />
+              Checking for updates...
             </div>
-            {#if updateError}
-              <p class="text-[10px] text-muted-foreground">{updateError}</p>
-            {/if}
-            <button
-              onclick={checkForUpdates}
-              class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
-            >
-              <RefreshCw class="h-3 w-3" />
-              Try Again
-            </button>
-          </div>
-        {/if}
-      </div>
+
+          {:else if updateStatus === "up-to-date"}
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-xs text-emerald-500">
+                <CheckCircle class="h-3.5 w-3.5" />
+                You're up to date!
+              </div>
+              <button
+                onclick={checkForUpdates}
+                class="rounded-md px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Check again
+              </button>
+            </div>
+
+          {:else if updateStatus === "available"}
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-foreground">
+                  v{updateVersion} available
+                </span>
+              </div>
+              {#if updateNotes}
+                <p class="text-[11px] leading-relaxed text-muted-foreground line-clamp-3">
+                  {updateNotes}
+                </p>
+              {/if}
+              <button
+                onclick={downloadAndInstall}
+                class="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <Download class="h-3.5 w-3.5" />
+                Download & Install
+              </button>
+            </div>
+
+          {:else if updateStatus === "downloading"}
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 class="h-3.5 w-3.5 animate-spin" />
+                Downloading update... {downloadProgress}%
+              </div>
+              <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  class="h-full rounded-full bg-primary transition-all duration-300"
+                  style={`width: ${downloadProgress}%`}
+                ></div>
+              </div>
+            </div>
+
+          {:else if updateStatus === "ready"}
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2 text-xs text-emerald-500">
+                <CheckCircle class="h-3.5 w-3.5" />
+                Update installed successfully
+              </div>
+              <button
+                onclick={restartApp}
+                class="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <RefreshCw class="h-3.5 w-3.5" />
+                Restart Now
+              </button>
+            </div>
+
+          {:else if updateStatus === "error"}
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2 text-xs text-destructive">
+                <AlertCircle class="h-3.5 w-3.5" />
+                Update check failed
+              </div>
+              {#if updateError}
+                <p class="text-[10px] text-muted-foreground">{updateError}</p>
+              {/if}
+              <button
+                onclick={checkForUpdates}
+                class="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-accent"
+              >
+                <RefreshCw class="h-3 w-3" />
+                Try Again
+              </button>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <!-- System Info -->

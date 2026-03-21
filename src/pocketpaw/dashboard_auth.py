@@ -6,6 +6,10 @@ Extracted from dashboard.py — contains:
 - ``auth_middleware()`` — HTTP middleware (registered by dashboard.py)
 - ``auth_router`` — APIRouter with session token, cookie login/logout, QR code,
   and token regeneration endpoints
+
+Modified: 2026-03-21 — Exempt /_app/* (SvelteKit hashed assets) and SPA sub-routes
+  from auth so the SvelteKit frontend can bootstrap without a pre-existing session.
+  API endpoints remain fully protected; the SPA handles auth via the injected token.
 """
 
 import io
@@ -285,8 +289,27 @@ async def _auth_dispatch(request: Request) -> Response | None:
     if not is_valid and _is_genuine_localhost(request):
         is_valid = True
 
-    # Allow frontend assets (/, /static/*) through for SPA bootstrap.
-    if request.url.path == "/" or request.url.path.startswith("/static/"):
+    # Allow frontend assets and SPA routes through for SPA bootstrap.
+    # - /         — Alpine.js dashboard root and SvelteKit SPA root
+    # - /static/* — Alpine.js static assets
+    # - /_app/*   — SvelteKit hashed JS/CSS assets (immutable, cache-busted)
+    # - /*.png, /*.svg, /*.ico etc. — SvelteKit static files at root level
+    # API endpoints (/api*, /ws*, /webhook*, /oauth*, /v1/*) remain protected.
+    path = request.url.path
+    _frontend_path = (
+        path == "/"
+        or path.startswith("/static/")
+        or path.startswith("/_app/")
+        or (
+            # Any path that is clearly a frontend route (not an API or webhook)
+            not path.startswith("/api")
+            and not path.startswith("/ws")
+            and not path.startswith("/webhook")
+            and not path.startswith("/oauth")
+            and not path.startswith("/v1/")
+        )
+    )
+    if _frontend_path:
         return None  # allow through
 
     # Require auth for ALL remaining paths — not only /api* and /ws*.

@@ -1,3 +1,6 @@
+// platform.svelte.ts — Platform detection store for PocketPaw SvelteKit client
+// Modified: 2026-03-21 — Added _isTauri flag, isWeb and isTauriDesktop derived flags for graceful web degradation
+
 type NativeEffect = "Vibrancy" | "Mica" | "Acrylic" | "None";
 
 class PlatformStore {
@@ -6,6 +9,17 @@ class PlatformStore {
   isNativeMobile = $state(false);
   desktopOS = $state<"macos" | "windows" | "linux" | "unknown">("unknown");
   nativeEffect = $state<NativeEffect>("None");
+
+  /** True when running inside a Tauri webview (desktop or mobile app) */
+  private _isTauri = $state(
+    typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__,
+  );
+
+  /** True when running as a plain web app (browser, not Tauri) */
+  isWeb = $derived(!this._isTauri);
+
+  /** True when running inside the Tauri desktop shell */
+  isTauriDesktop = $derived(this._isTauri);
 
   isMobile = $derived(this.viewportWidth < 640);
   isTablet = $derived(this.viewportWidth >= 640 && this.viewportWidth < 1024);

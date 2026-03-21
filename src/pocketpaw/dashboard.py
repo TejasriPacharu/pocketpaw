@@ -3,6 +3,9 @@
 Lightweight FastAPI server that serves the frontend and handles WebSocket communication.
 
 Changes:
+  - 2026-03-21: SvelteKit support — mount /_app/ StaticFiles, catch-all SPA route,
+    token injection into index.html for localhost bootstrap. Controlled via
+    settings.frontend ("svelte" | "alpine") / POCKETPAW_FRONTEND env var.
   - 2026-02-17: Health heartbeat — periodic checks every 5 min via APScheduler,
     broadcasts health_update on status transitions.
   - 2026-02-17: Health Engine API (GET /api/health, POST /api/health/check,
@@ -113,6 +116,7 @@ _restart_requested = False
 # Get frontend directory
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 TEMPLATES_DIR = FRONTEND_DIR / "templates"
+WEBAPP_DIR = Path(__file__).parent / "webapp"  # SvelteKit pre-rendered output
 
 # Initialize Templates
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -181,6 +185,10 @@ async def security_headers_middleware(request: Request, call_next):
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+# Mount SvelteKit hashed assets (/_app/) when the webapp build exists
+if WEBAPP_DIR.exists() and (WEBAPP_DIR / "_app").exists():
+    app.mount("/_app", StaticFiles(directory=WEBAPP_DIR / "_app"), name="svelte_app")
 
 # Mount Mission Control API router
 app.include_router(mission_control_router, prefix="/api/mission-control")
@@ -910,10 +918,26 @@ async def get_version_info():
     return info or {"current": current, "latest": current, "update_available": False}
 
 
+def _serve_svelte_html(request: Request, html_path: Path) -> Response:
+    """Read an HTML file from the SvelteKit build and inject the auth token for localhost."""
+    html = html_path.read_text()
+    if _is_genuine_localhost(request):
+        token = get_access_token()
+        html = html.replace(
+            "</head>",
+            f'<meta name="pocketpaw-token" content="{token}"></head>',
+        )
+    return Response(content=html, media_type="text/html")
+
+
 @app.get("/")
 async def index(request: Request):
     """Serve the main dashboard page."""
     from importlib.metadata import version as get_version
+
+    settings = Settings.load()
+    if settings.frontend == "svelte" and WEBAPP_DIR.exists():
+        return _serve_svelte_html(request, WEBAPP_DIR / "index.html")
 
     return templates.TemplateResponse(
         "base.html",
@@ -1690,6 +1714,32 @@ async def get_memory_stats():
         "backend": "file",
         "total_memories": "N/A (use mem0 for stats)",
     }
+
+
+# ==================== SvelteKit SPA catch-all ====================
+# Must be registered AFTER all other routes so API/WebSocket paths take priority.
+
+
+@app.get("/{full_path:path}")
+async def svelte_catch_all(request: Request, full_path: str):
+    """Serve SvelteKit static files or fall back to index.html for SPA routing."""
+    from starlette.responses import FileResponse
+
+    settings = Settings.load()
+    if settings.frontend != "svelte" or not WEBAPP_DIR.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Try to serve an exact file match (favicon.png, robots.txt, etc.)
+    file_path = WEBAPP_DIR / full_path
+    if file_path.is_file() and WEBAPP_DIR in file_path.resolve().parents:
+        return FileResponse(file_path)
+
+    # SPA fallback — serve index.html for all unmatched paths
+    index_path = WEBAPP_DIR / "index.html"
+    if index_path.is_file():
+        return _serve_svelte_html(request, index_path)
+
+    raise HTTPException(status_code=404, detail="Not found")
 
 
 def run_dashboard(

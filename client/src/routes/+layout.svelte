@@ -1,3 +1,7 @@
+<!-- +layout.svelte — Root layout: auth gate, platform detection, store initialization.
+     Modified: 2026-03-21 — Added web auth flow: meta-tag token injection and WebLogin
+     component for browser users. Tauri auth path is unchanged.
+-->
 <script lang="ts">
   import "../styles/global.css";
   import type { Snippet } from "svelte";
@@ -11,6 +15,7 @@
   import TitleBar from "$lib/components/titlebar/TitleBar.svelte";
   import MobileHeader from "$lib/components/MobileHeader.svelte";
   import SetupBackend from "$lib/components/onboarding/SetupBackend.svelte";
+  import WebLogin from "$lib/components/WebLogin.svelte";
   import { initializeStores, activityStore, connectionStore, platformStore, sessionStore, chatStore, settingsStore, uiStore } from "$lib/stores";
   import {
     isTauri,
@@ -50,7 +55,7 @@
   let isQuickAsk = $derived(page.url.pathname.startsWith("/quickask"));
   let isOAuthCallback = $derived(page.url.pathname.startsWith("/oauth-callback"));
 
-  type AuthState = "loading" | "checking_backend" | "backend_missing" | "backend_stopped" | "installing" | "starting" | "authenticating" | "authenticated" | "error";
+  type AuthState = "loading" | "checking_backend" | "backend_missing" | "backend_stopped" | "installing" | "starting" | "authenticating" | "authenticated" | "needs-login" | "error";
   let authState = $state<AuthState>("loading");
   let authError = $state<string | null>(null);
 
@@ -145,11 +150,23 @@
     if (pathname.startsWith("/sidepanel") || pathname.startsWith("/quickask") || pathname.startsWith("/oauth-callback")) return;
 
     if (!isTauri()) {
-      // Browser dev fallback — skip backend check entirely
-      const token = "dev-token";
-      await initializeStores(token);
-      authState = "authenticated";
-      finishSetup();
+      // Web/browser mode — no Tauri IPC available.
+      // Check for a token injected by the backend into the HTML <head>.
+      // The backend can render a <meta name="pocketpaw-token" content="<token>"> tag
+      // when serving the SPA, giving web users a seamless auto-login.
+      if (typeof document !== "undefined") {
+        const metaToken = document
+          .querySelector('meta[name="pocketpaw-token"]')
+          ?.getAttribute("content");
+        if (metaToken) {
+          await initializeStores(metaToken);
+          authState = "authenticated";
+          finishSetup();
+          return;
+        }
+      }
+      // No injected token — show the manual login form.
+      authState = "needs-login";
       return;
     }
 
@@ -299,6 +316,19 @@
     }
   }
 
+  /** Called by WebLogin when the user successfully validates their token. */
+  async function handleWebLogin(token: string) {
+    authState = "loading";
+    try {
+      await initializeStores(token);
+      authState = "authenticated";
+      finishSetup();
+    } catch (e) {
+      authState = "error";
+      authError = `Connection failed: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
   async function retryAuth() {
     authError = null;
     await authenticate();
@@ -357,6 +387,10 @@
               <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
               <p class="text-sm text-muted-foreground">Waiting for sign-in...</p>
             </div>
+          </div>
+        {:else if authState === "needs-login"}
+          <div class="flex flex-1 overflow-hidden">
+            <WebLogin onLogin={handleWebLogin} />
           </div>
         {:else if authState === "error"}
           <div class="flex flex-1 items-center justify-center">

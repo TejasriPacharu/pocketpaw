@@ -1,6 +1,10 @@
+<!--
+  TitleBar.svelte — Custom window chrome for the PocketPaw desktop app
+  Modified: 2026-03-21 — Removed top-level Tauri import (crashes in web mode);
+    window controls and drag region are hidden in web mode via platformStore.isWeb
+-->
 <script lang="ts">
-  import { platform } from "@tauri-apps/plugin-os";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { platformStore } from "$lib/stores";
   import { PanelLeft } from "@lucide/svelte";
   import WindowControls from "./WindowControls.svelte";
   import SessionTitle from "./SessionTitle.svelte";
@@ -12,34 +16,27 @@
 
   let { onToggleSidebar, showTabs = true }: { onToggleSidebar?: () => void; showTabs?: boolean } = $props();
 
-  let os = $state("linux");
-
-  $effect(() => {
-    try {
-      os = platform();
-    } catch {
-      os = "linux";
-    }
-  });
-
-  const isMac = $derived(os === "macos");
+  const isMac = $derived(platformStore.desktopOS === "macos");
 
   const headerClass = $derived(
     isMac
       ? "relative flex w-full shrink-0 items-center h-[38px] border-b border-border bg-background/80"
-      : os === "windows"
+      : platformStore.desktopOS === "windows"
         ? "relative flex w-full shrink-0 items-center h-[32px] border-b border-border bg-background/80"
         : "relative flex w-full shrink-0 items-center h-[34px] border-b border-border bg-background/80",
   );
 
   const leftZoneClass = $derived(
-    isMac ? "flex items-center pl-[76px]" : "flex items-center pl-2",
+    isMac && !platformStore.isWeb ? "flex items-center pl-[76px]" : "flex items-center pl-2",
   );
 
   async function startDrag(e: MouseEvent) {
+    // Drag region is only meaningful in Tauri; browsers manage their own window
+    if (platformStore.isWeb) return;
     const target = e.target as HTMLElement;
     if (target.closest("button") || target.closest("input") || target.closest("a")) return;
     try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
       await getCurrentWindow().startDragging();
     } catch {
       // not in Tauri context
@@ -51,10 +48,10 @@
 <header
   class={headerClass}
   onmousedown={startDrag}
-  data-tauri-drag-region
+  data-tauri-drag-region={!platformStore.isWeb || undefined}
 >
   <!-- Left zone: sidebar toggle (+ macOS traffic light inset) -->
-  
+
   <!-- Center zone: workspace tabs + session title + model badge -->
   <div class="flex w-full justify-between">
     <div class={leftZoneClass}>
@@ -69,12 +66,11 @@
     </div>
     <WorkspaceTabs visible={showTabs} />
 
-
-  <!-- Right zone: window controls -->
-  <div class="flex items-center gap-0.5 pr-0.5">
-    {#if !isMac}
-      <WindowControls platform={os} />
-    {/if}
+    <!-- Right zone: window controls (desktop only — browser provides its own chrome) -->
+    <div class="flex items-center gap-0.5 pr-0.5">
+      {#if !platformStore.isWeb && !isMac}
+        <WindowControls platform={platformStore.desktopOS} />
+      {/if}
+    </div>
   </div>
- </div>
 </header>
