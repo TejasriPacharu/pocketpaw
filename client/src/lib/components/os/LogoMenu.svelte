@@ -10,7 +10,7 @@
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import Blend from "@lucide/svelte/icons/blend";
 
-  let { onClose }: { onClose: () => void } = $props();
+  let { onClose, onOpenControlCenter }: { onClose: () => void; onOpenControlCenter?: () => void } = $props();
   let menuEl: HTMLDivElement | null = null;
 
   // --- Glass opacity control ---
@@ -58,6 +58,11 @@
   onDestroy(() => { window.removeEventListener("mousedown", handleGlobalClick); });
 
   function handleAction(action: string) {
+    if (action === "preferences" && onOpenControlCenter) {
+      onClose();
+      onOpenControlCenter();
+      return;
+    }
     console.log("[LogoMenu] action:", action);
     onClose();
   }

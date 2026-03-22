@@ -13,6 +13,7 @@
   import LogoMenu from "$lib/components/os/LogoMenu.svelte";
   import UserMenu from "$lib/components/os/UserMenu.svelte";
   import DesktopWidgets, { type PinnedWidget } from "$lib/components/os/DesktopWidgets.svelte";
+  import ControlCenter from "$lib/components/os/ControlCenter.svelte";
 
   type Tab = "pockets" | "files" | "chat";
 
@@ -21,6 +22,7 @@
   let paletteOpen = $state(false);
   let logoMenuOpen = $state(false);
   let userMenuOpen = $state(false);
+  let controlCenterOpen = $state(false);
   let activeTab = $state<Tab | null>(null);
 
   // --- Pinned desktop widgets ---
@@ -111,6 +113,7 @@
       togglePalette();
     }
     if (e.key === "Escape") {
+      if (controlCenterOpen) { controlCenterOpen = false; return; }
       if (paletteOpen) { paletteOpen = false; return; }
       if (logoMenuOpen) { logoMenuOpen = false; return; }
       if (userMenuOpen) { userMenuOpen = false; return; }
@@ -167,10 +170,18 @@
 
 <!-- Logo dropdown menu -->
 {#if logoMenuOpen}
-  <LogoMenu onClose={() => { logoMenuOpen = false; }} />
+  <LogoMenu
+    onClose={() => { logoMenuOpen = false; }}
+    onOpenControlCenter={() => { controlCenterOpen = true; }}
+  />
 {/if}
 
 <!-- User dropdown menu -->
 {#if userMenuOpen}
   <UserMenu onClose={() => { userMenuOpen = false; }} />
+{/if}
+
+<!-- Control Center panel -->
+{#if controlCenterOpen}
+  <ControlCenter onClose={() => { controlCenterOpen = false; }} />
 {/if}
