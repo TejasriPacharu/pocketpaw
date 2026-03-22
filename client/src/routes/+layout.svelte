@@ -54,6 +54,7 @@
   let isSidePanel = $derived(page.url.pathname.startsWith("/sidepanel"));
   let isQuickAsk = $derived(page.url.pathname.startsWith("/quickask"));
   let isOAuthCallback = $derived(page.url.pathname.startsWith("/oauth-callback"));
+  let isAgentOS = $derived(page.url.pathname.startsWith("/os"));
 
   type AuthState = "loading" | "checking_backend" | "backend_missing" | "backend_stopped" | "installing" | "starting" | "authenticating" | "authenticated" | "needs-login" | "error";
   let authState = $state<AuthState>("loading");
@@ -353,7 +354,7 @@
 <ModeWatcher />
 <div>
   <TooltipProvider>
-    {#if isSidePanel || isQuickAsk || isOAuthCallback}
+    {#if isSidePanel || isQuickAsk || isOAuthCallback || isAgentOS}
       {@render children()}
     {:else}
       <div class="flex h-dvh w-screen flex-col bg-background">
