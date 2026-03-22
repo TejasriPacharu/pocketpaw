@@ -10,6 +10,7 @@ import json
 import logging
 import shutil
 import time
+from collections.abc import Callable
 from typing import Any
 
 from pocketpaw.bus import BaseChannelAdapter, Channel, InboundMessage, OutboundMessage
@@ -33,6 +34,9 @@ _STREAM_BUFFER_THRESHOLD = 25
 
 class DiscliAdapter(BaseChannelAdapter):
     """Discord adapter that delegates to discli serve subprocess."""
+
+    # Event name -> handler method. Async handlers are wrapped in create_task.
+    _EVENT_DISPATCH: dict[str, Callable] = {}  # populated after class body
 
     def __init__(
         self,
@@ -378,27 +382,19 @@ class DiscliAdapter(BaseChannelAdapter):
                         future.set_result(data)
                     continue
 
-                # Handle events — fire as tasks to avoid deadlocking
-                # the reader (handlers may call _send_command which reads
-                # from the same stdout this loop consumes).
+                # Handle events via dispatch table. Async handlers are
+                # wrapped in tasks to avoid deadlocking the reader (they
+                # may call _send_command which reads from the same stdout).
                 if event == "ready":
                     self._bot_id = data.get("bot_id")
-                elif event == "message":
-                    asyncio.create_task(self._handle_message_event(data))
-                elif event == "slash_command":
-                    asyncio.create_task(self._handle_slash_event(data))
-                elif event == "component_interaction":
-                    asyncio.create_task(self._handle_component_interaction(data))
-                elif event == "modal_submit":
-                    asyncio.create_task(self._handle_modal_submit(data))
-                elif event == "voice_state":
-                    self._handle_voice_state(data)
-                elif event == "disconnected":
-                    self._handle_disconnected(data)
-                elif event == "resumed":
-                    self._handle_resumed(data)
                 elif event == "error":
                     logger.error("discli serve error: %s", data.get("message"))
+                else:
+                    handler = self._EVENT_DISPATCH.get(event)
+                    if handler:
+                        bound = handler(self, data)
+                        if asyncio.iscoroutine(bound):
+                            asyncio.create_task(bound)
 
         except asyncio.CancelledError:
             pass
@@ -963,3 +959,15 @@ class DiscliAdapter(BaseChannelAdapter):
         # Strip markdown formatting (backticks, bold, italic, underscores, periods)
         cleaned = stripped.strip("`*_ .\n\r\t")
         return cleaned == _NO_RESPONSE_MARKER
+
+
+# Populate dispatch table after class body so all methods are defined
+DiscliAdapter._EVENT_DISPATCH = {
+    "message": DiscliAdapter._handle_message_event,
+    "slash_command": DiscliAdapter._handle_slash_event,
+    "component_interaction": DiscliAdapter._handle_component_interaction,
+    "modal_submit": DiscliAdapter._handle_modal_submit,
+    "voice_state": DiscliAdapter._handle_voice_state,
+    "disconnected": DiscliAdapter._handle_disconnected,
+    "resumed": DiscliAdapter._handle_resumed,
+}
