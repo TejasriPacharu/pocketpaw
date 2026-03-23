@@ -30,6 +30,13 @@
   import ScanSearch from "@lucide/svelte/icons/scan-search";
   import Palette from "@lucide/svelte/icons/palette";
   import Zap from "@lucide/svelte/icons/zap";
+  import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
+
+  // --- Sidebar settings state ---
+  let sidebarSettingsOpen = $state(false);
+  let showHidden = $state(false);
+  let sortBy = $state<"name" | "date" | "size">("date");
+  let previewPane = $state(true);
 
   // --- AI Sidebar chat state ---
   type AiMessage = { id: string; role: "user" | "agent"; text: string };
@@ -215,6 +222,37 @@
           </button>
         {/each}
       </div>
+
+      <!-- Sidebar settings footer -->
+      <div class="sb-settings-spacer"></div>
+      {#if sidebarSettingsOpen}
+        <div class="sb-settings-panel">
+          <div class="sb-setting-row">
+            <span class="sb-setting-label">Sort by</span>
+            <div class="sb-chips">
+              <button class={sortBy === "name" ? "sb-chip sb-chip-active" : "sb-chip"} onclick={() => sortBy = "name"}>Name</button>
+              <button class={sortBy === "date" ? "sb-chip sb-chip-active" : "sb-chip"} onclick={() => sortBy = "date"}>Date</button>
+              <button class={sortBy === "size" ? "sb-chip sb-chip-active" : "sb-chip"} onclick={() => sortBy = "size"}>Size</button>
+            </div>
+          </div>
+          <div class="sb-setting-row">
+            <span class="sb-setting-label">Hidden files</span>
+            <button class={showHidden ? "sb-toggle sb-toggle-on" : "sb-toggle"} onclick={() => showHidden = !showHidden}>
+              <span class="sb-toggle-knob"></span>
+            </button>
+          </div>
+          <div class="sb-setting-row">
+            <span class="sb-setting-label">Preview pane</span>
+            <button class={previewPane ? "sb-toggle sb-toggle-on" : "sb-toggle"} onclick={() => previewPane = !previewPane}>
+              <span class="sb-toggle-knob"></span>
+            </button>
+          </div>
+        </div>
+      {/if}
+      <button class="sb-settings-trigger" class:sb-settings-active={sidebarSettingsOpen} onclick={() => sidebarSettingsOpen = !sidebarSettingsOpen}>
+        <SlidersHorizontal size={13} strokeWidth={1.8} />
+        <span>Settings</span>
+      </button>
     </aside>
     <div class="sidebar-resize-handle" onpointerdown={(e) => onSidebarResizeDown(e, "left")}></div>
 
@@ -575,4 +613,50 @@
   }
   .ai-send-btn:hover { background: rgba(255,255,255,0.32); }
   .ai-send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ---- Sidebar settings footer ---- */
+  .sb-settings-spacer { flex: 1; min-height: 12px; }
+  .sb-settings-trigger {
+    display: flex; align-items: center; gap: 7px;
+    width: 100%; padding: 8px 10px; border-radius: 7px;
+    border: none; background: none;
+    color: rgba(255,255,255,0.38); font-size: 12px; font-family: inherit;
+    cursor: pointer; transition: background 0.12s, color 0.12s; flex-shrink: 0;
+  }
+  .sb-settings-trigger:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.70); }
+  .sb-settings-active { color: #0A84FF !important; background: rgba(10,132,255,0.10) !important; }
+  .sb-settings-panel {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+    margin-bottom: 4px; flex-shrink: 0;
+    animation: sb-in 0.12s ease-out;
+  }
+  @keyframes sb-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .sb-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .sb-setting-label { font-size: 11px; color: rgba(255,255,255,0.45); flex-shrink: 0; }
+  .sb-chips { display: flex; gap: 3px; }
+  .sb-chip {
+    padding: 3px 7px; border-radius: 5px; border: none;
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.45);
+    font-size: 11px; font-family: inherit; cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+  }
+  .sb-chip:hover { background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.75); }
+  .sb-chip-active { background: rgba(10,132,255,0.18) !important; color: #0A84FF !important; }
+  .sb-toggle {
+    position: relative; width: 30px; height: 17px; border-radius: 9px;
+    border: none; cursor: pointer; background: rgba(255,255,255,0.12);
+    transition: background 0.15s; flex-shrink: 0; padding: 0;
+  }
+  .sb-toggle-on { background: rgba(10,132,255,0.55); }
+  .sb-toggle-knob {
+    position: absolute; top: 2px; left: 2px;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: rgba(255,255,255,0.75); transition: left 0.15s;
+  }
+  .sb-toggle-on .sb-toggle-knob { left: 15px; background: white; }
 </style>
