@@ -663,6 +663,65 @@ class MemoryManager:
             return await self._store.search_sessions(query, limit=limit)
         return []
 
+    async def update_memory(
+        self,
+        entry_id: str,
+        *,
+        content: str | None = None,
+        tags: list[str] | None = None,
+    ) -> bool:
+        """Update a memory entry when supported by backend."""
+        if hasattr(self._store, "update_entry"):
+            return await self._store.update_entry(entry_id, content=content, tags=tags)
+        return False
+
+    async def get_graph_snapshot(
+        self,
+        *,
+        sender_id: str | None = None,
+        query: str | None = None,
+        limit: int = 200,
+    ) -> dict:
+        """Get a lightweight knowledge-graph snapshot for the caller's scope."""
+        if not hasattr(self._store, "get_graph_snapshot"):
+            return {"nodes": [], "edges": []}
+        user_id = self._resolve_user_id(sender_id)
+        return await self._store.get_graph_snapshot(user_id=user_id, query=query, limit=limit)
+
+    async def get_graph_svg(
+        self,
+        *,
+        sender_id: str | None = None,
+        query: str | None = None,
+        limit: int = 200,
+        width: int = 800,
+        height: int = 400,
+    ) -> str:
+        """Get SVG visualization of the knowledge graph for the caller's scope."""
+        if not hasattr(self._store, "get_graph_svg"):
+            unsupported_svg = (
+                '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">'
+                '<text x="10" y="20" fill="rgba(255,255,255,0.6)">'
+                "Graph visualization not supported</text></svg>"
+            )
+            return unsupported_svg
+        user_id = self._resolve_user_id(sender_id)
+        return await self._store.get_graph_svg(
+            user_id=user_id, query=query, limit=limit, width=width, height=height
+        )
+
+    async def get_memory_stats(self) -> dict:
+        """Return memory backend statistics when supported."""
+        if hasattr(self._store, "get_memory_stats"):
+            return await self._store.get_memory_stats()
+        return {"backend": "file", "total_memories": len(getattr(self._store, "_index", {}))}
+
+    async def prune_memories(self, older_than_days: int = 30) -> dict:
+        """Prune memories via backend if supported."""
+        if hasattr(self._store, "prune_memories"):
+            return await self._store.prune_memories(older_than_days=older_than_days)
+        return {"ok": False, "reason": "backend_not_supported"}
+
     # =========================================================================
     # Session Aliases (pass-through for file store)
     # =========================================================================

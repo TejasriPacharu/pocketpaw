@@ -2,7 +2,7 @@
 # dedup, persistent delete, ForgetTool, auto-learn, context limits.
 # Created: 2026-02-09
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -686,3 +686,81 @@ class TestFileVectorSemanticSearch:
         context = await manager.get_semantic_context("what stack does project phoenix use")
         assert "Relevant Memories" in context
         assert "React" in context
+
+
+class TestFileGraphAndManagement:
+    """Phase 2/3: graph indexing, memory edits, and pruning."""
+
+    async def test_graph_snapshot_contains_entities_and_edges(self, tmp_path):
+        store = FileMemoryStore(
+            base_path=tmp_path,
+            vector_enabled=True,
+            embedding_provider="hash",
+        )
+
+        await store.save(
+            MemoryEntry(
+                id="",
+                type=MemoryType.LONG_TERM,
+                content="Project Phoenix uses React",
+                metadata={"header": "Project"},
+            )
+        )
+
+        graph = await store.get_graph_snapshot(user_id="default")
+        assert len(graph["nodes"]) >= 2
+        assert any(edge["relation"] == "uses" for edge in graph["edges"])
+
+    async def test_update_entry_reindexes_content(self, tmp_path):
+        store = FileMemoryStore(
+            base_path=tmp_path,
+            vector_enabled=True,
+            embedding_provider="hash",
+        )
+
+        entry_id = await store.save(
+            MemoryEntry(
+                id="",
+                type=MemoryType.LONG_TERM,
+                content="Service runs on Flask",
+                metadata={"header": "Tech"},
+            )
+        )
+
+        updated = await store.update_entry(entry_id, content="Service runs on FastAPI")
+        assert updated is True
+
+        entry = await store.get(entry_id)
+        assert entry is not None
+        assert "FastAPI" in entry.content
+
+    async def test_prune_memories_deletes_old_daily_entries(self, tmp_path):
+        store = FileMemoryStore(
+            base_path=tmp_path,
+            vector_enabled=True,
+            embedding_provider="hash",
+        )
+
+        old_entry = MemoryEntry(
+            id="",
+            type=MemoryType.DAILY,
+            content="Old daily memory",
+            created_at=datetime.now(tz=UTC) - timedelta(days=45),
+            metadata={"header": "Daily"},
+        )
+        old_id = await store.save(old_entry)
+
+        result = await store.prune_memories(older_than_days=30)
+        assert result["ok"] is True
+        assert result["deleted_daily_memories"] >= 1
+        assert await store.get(old_id) is None
+
+    async def test_clear_session_handles_non_list_json(self, tmp_path):
+        store = FileMemoryStore(base_path=tmp_path)
+        session_key = "discord:test-session"
+        session_file = store._get_session_file(session_key)
+        session_file.write_text('{"unexpected": "shape"}', encoding="utf-8")
+
+        count = await store.clear_session(session_key)
+        assert count == 0
+        assert not session_file.exists()

@@ -61,6 +61,8 @@ dependencies = [
     "cryptography>=42.0",
     # Image basics
     "pillow>=10.0.0",
+    # Graph visualization (memory knowledge graph SVG generation)
+    "networkx>=3.0",
 ]
 
 [project.optional-dependencies]

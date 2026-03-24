@@ -145,6 +145,70 @@ _STOP_WORDS = frozenset(
     }
 )
 
+_GRAPH_TECH_TERMS = frozenset(
+    {
+        "python",
+        "java",
+        "javascript",
+        "typescript",
+        "react",
+        "node",
+        "fastapi",
+        "flask",
+        "django",
+        "postgres",
+        "postgresql",
+        "mysql",
+        "sqlite",
+        "redis",
+        "mongodb",
+        "docker",
+        "kubernetes",
+        "ollama",
+        "anthropic",
+        "openai",
+        "qdrant",
+        "chromadb",
+        "mem0",
+        "pocketpaw",
+    }
+)
+
+_RELATION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(
+            r"(?P<src>[A-Za-z][A-Za-z0-9_\- ]{1,60}?)\s+uses\s+"
+            r"(?P<tgt>[A-Za-z][A-Za-z0-9_\- ]{1,60})",
+            re.IGNORECASE,
+        ),
+        "uses",
+    ),
+    (
+        re.compile(
+            r"(?P<src>[A-Za-z][A-Za-z0-9_\- ]{1,60}?)\s+depends on\s+"
+            r"(?P<tgt>[A-Za-z][A-Za-z0-9_\- ]{1,60})",
+            re.IGNORECASE,
+        ),
+        "depends_on",
+    ),
+    (
+        re.compile(
+            r"(?P<src>[A-Za-z][A-Za-z0-9_\- ]{1,60}?)\s+related to\s+"
+            r"(?P<tgt>[A-Za-z][A-Za-z0-9_\- ]{1,60})",
+            re.IGNORECASE,
+        ),
+        "related_to",
+    ),
+    (
+        re.compile(
+            r"(?P<src>[A-Za-z][A-Za-z0-9_\- ]{1,60}?)\s+has\s+"
+            r"(?P<tgt>[A-Za-z][A-Za-z0-9_\- ]{1,60})",
+            re.IGNORECASE,
+        ),
+        "has",
+    ),
+]
+
 
 def _make_deterministic_id(path: Path, header: str, body: str) -> str:
     """Generate a deterministic UUID5 from path, header, AND body content."""
@@ -202,11 +266,17 @@ class FileMemoryStore:
         self._vector_backend = "none"
         self._chroma_collection = None
 
+        # Knowledge graph (phase 2)
+        self._graph_enabled = True
+        self._graph_db_path = self.base_path / "knowledge_graph.sqlite3"
+        self._graph_lock = asyncio.Lock()
+
         # Inverted index for O(k) search narrowing (word -> set of entry IDs)
         self._inverted: dict[str, set[str]] = {}
         self._inv_dirty = True
 
         self._initialize_vector_backend()
+        self._initialize_graph_store()
 
         self._load_index()
 
@@ -277,6 +347,275 @@ class FileMemoryStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_memory_vectors_type ON memory_vectors(memory_type)"
             )
+
+    def _initialize_graph_store(self) -> None:
+        """Initialize sqlite tables for lightweight knowledge graph."""
+        with sqlite3.connect(self._graph_db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS entities (
+                    entity_id TEXT PRIMARY KEY,
+                    user_scope TEXT NOT NULL,
+                    entity_key TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    mention_count INTEGER NOT NULL DEFAULT 0,
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    UNIQUE(user_scope, entity_key)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS relationships (
+                    relationship_id TEXT PRIMARY KEY,
+                    user_scope TEXT NOT NULL,
+                    source_entity_id TEXT NOT NULL,
+                    target_entity_id TEXT NOT NULL,
+                    relation_type TEXT NOT NULL,
+                    weight INTEGER NOT NULL DEFAULT 0,
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    UNIQUE(user_scope, source_entity_id, target_entity_id, relation_type)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS memory_entity_links (
+                    memory_id TEXT NOT NULL,
+                    user_scope TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    PRIMARY KEY(memory_id, entity_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS relationship_evidence (
+                    relationship_id TEXT NOT NULL,
+                    memory_id TEXT NOT NULL,
+                    PRIMARY KEY(relationship_id, memory_id)
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_entities_user_scope ON entities(user_scope)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_links_memory ON memory_entity_links(memory_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_links_scope ON memory_entity_links(user_scope)"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_scope ON relationships(user_scope)")
+
+    @staticmethod
+    def _normalize_entity_key(name: str) -> str:
+        """Normalize entity key for deduplicated graph storage."""
+        compact = re.sub(r"\s+", " ", name).strip(" \t\n.,;:()[]{}\"'")
+        return compact.lower()
+
+    def _extract_graph_signals(self, content: str) -> tuple[list[str], list[tuple[str, str, str]]]:
+        """Extract entities + simple relationships from conversational text."""
+        entities: set[str] = set()
+        relationships: list[tuple[str, str, str]] = []
+
+        # Technology entities (lowercase terms)
+        for token in _tokenize(content):
+            if token in _GRAPH_TECH_TERMS:
+                entities.add(token)
+
+        # Title-case entities (e.g., Project Phoenix)
+        for match in re.finditer(
+            r"\b[A-Z][a-zA-Z0-9_\-]*(?:\s+[A-Z][a-zA-Z0-9_\-]*){0,2}\b",
+            content,
+        ):
+            name = match.group(0).strip()
+            if len(name) >= 3:
+                entities.add(name)
+
+        # Explicit relationships from patterns
+        for pattern, rel_type in _RELATION_PATTERNS:
+            for match in pattern.finditer(content):
+                src = match.group("src").strip()
+                tgt = match.group("tgt").strip()
+                if not src or not tgt:
+                    continue
+                entities.add(src)
+                entities.add(tgt)
+                relationships.append((src, rel_type, tgt))
+
+        # Weak fallback: connect first two entities if no explicit relation extracted
+        if not relationships and len(entities) >= 2:
+            ordered_entities = sorted(entities)
+            relationships.append((ordered_entities[0], "related_to", ordered_entities[1]))
+
+        # Keep extraction bounded
+        trimmed_entities = sorted(entities)[:12]
+        trimmed_relationships = relationships[:24]
+        return trimmed_entities, trimmed_relationships
+
+    async def _delete_graph_for_memory(self, memory_id: str) -> None:
+        """Remove graph evidence links for a memory and maintain counters."""
+        if not self._graph_enabled:
+            return
+        async with self._graph_lock:
+            await asyncio.to_thread(self._delete_graph_for_memory_sync, memory_id)
+
+    def _delete_graph_for_memory_sync(self, memory_id: str) -> None:
+        """Sync graph cleanup for a deleted/updated memory."""
+        with sqlite3.connect(self._graph_db_path) as conn:
+            links = conn.execute(
+                "SELECT entity_id, user_scope FROM memory_entity_links WHERE memory_id = ?",
+                (memory_id,),
+            ).fetchall()
+            conn.execute("DELETE FROM memory_entity_links WHERE memory_id = ?", (memory_id,))
+
+            for entity_id, user_scope in links:
+                conn.execute(
+                    """
+                    UPDATE entities
+                    SET mention_count = CASE
+                        WHEN mention_count > 0 THEN mention_count - 1
+                        ELSE 0
+                    END
+                    WHERE entity_id = ? AND user_scope = ?
+                    """,
+                    (entity_id, user_scope),
+                )
+
+            rel_rows = conn.execute(
+                "SELECT relationship_id FROM relationship_evidence WHERE memory_id = ?",
+                (memory_id,),
+            ).fetchall()
+            conn.execute("DELETE FROM relationship_evidence WHERE memory_id = ?", (memory_id,))
+
+            for (relationship_id,) in rel_rows:
+                conn.execute(
+                    """
+                    UPDATE relationships
+                    SET weight = CASE WHEN weight > 0 THEN weight - 1 ELSE 0 END
+                    WHERE relationship_id = ?
+                    """,
+                    (relationship_id,),
+                )
+
+            conn.execute("DELETE FROM relationships WHERE weight <= 0")
+            conn.execute(
+                """
+                DELETE FROM entities
+                WHERE mention_count <= 0
+                  AND entity_id NOT IN (SELECT entity_id FROM memory_entity_links)
+                """
+            )
+
+    async def _index_graph_record(self, entry: MemoryEntry) -> None:
+        """Index entry entities and relationships into lightweight graph store."""
+        if not self._graph_enabled:
+            return
+        entities, relationships = self._extract_graph_signals(entry.content)
+        if not entities and not relationships:
+            return
+
+        user_scope = self._entry_user_scope(entry)
+        now_iso = _ensure_utc(entry.created_at).isoformat()
+
+        async with self._graph_lock:
+            await asyncio.to_thread(
+                self._index_graph_record_sync,
+                entry.id,
+                user_scope,
+                now_iso,
+                entities,
+                relationships,
+            )
+
+    def _index_graph_record_sync(
+        self,
+        memory_id: str,
+        user_scope: str,
+        now_iso: str,
+        entities: list[str],
+        relationships: list[tuple[str, str, str]],
+    ) -> None:
+        """Sync graph write path for entities/relationships."""
+        with sqlite3.connect(self._graph_db_path) as conn:
+            entity_id_map: dict[str, str] = {}
+
+            for display_name in entities:
+                entity_key = self._normalize_entity_key(display_name)
+                if not entity_key:
+                    continue
+                entity_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{user_scope}:{entity_key}"))
+                entity_id_map[entity_key] = entity_id
+
+                conn.execute(
+                    """
+                    INSERT INTO entities (
+                        entity_id, user_scope, entity_key, display_name,
+                        mention_count, first_seen, last_seen
+                    )
+                    VALUES (?, ?, ?, ?, 1, ?, ?)
+                    ON CONFLICT(user_scope, entity_key) DO UPDATE SET
+                        mention_count = entities.mention_count + 1,
+                        last_seen = excluded.last_seen
+                    """,
+                    (entity_id, user_scope, entity_key, display_name, now_iso, now_iso),
+                )
+
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO memory_entity_links (memory_id, user_scope, entity_id)
+                    VALUES (?, ?, ?)
+                    """,
+                    (memory_id, user_scope, entity_id),
+                )
+
+            for src_name, rel_type, tgt_name in relationships:
+                src_key = self._normalize_entity_key(src_name)
+                tgt_key = self._normalize_entity_key(tgt_name)
+                src_id = entity_id_map.get(src_key)
+                tgt_id = entity_id_map.get(tgt_key)
+                if not src_id or not tgt_id or src_id == tgt_id:
+                    continue
+
+                relationship_id = str(
+                    uuid.uuid5(
+                        uuid.NAMESPACE_DNS,
+                        f"{user_scope}:{src_id}:{rel_type}:{tgt_id}",
+                    )
+                )
+
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO relationships (
+                        relationship_id, user_scope, source_entity_id,
+                        target_entity_id, relation_type, weight, first_seen, last_seen
+                    )
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+                    """,
+                    (relationship_id, user_scope, src_id, tgt_id, rel_type, now_iso, now_iso),
+                )
+
+                inserted = conn.execute(
+                    """
+                    INSERT OR IGNORE INTO relationship_evidence (relationship_id, memory_id)
+                    VALUES (?, ?)
+                    """,
+                    (relationship_id, memory_id),
+                ).rowcount
+
+                if inserted:
+                    conn.execute(
+                        """
+                        UPDATE relationships
+                        SET weight = weight + 1,
+                            last_seen = ?
+                        WHERE relationship_id = ?
+                        """,
+                        (now_iso, relationship_id),
+                    )
 
     @staticmethod
     def _hash_embedding(text: str, dim: int = 384) -> list[float]:
@@ -794,6 +1133,7 @@ class FileMemoryStore:
 
         for entry_id in entry_ids:
             await self._delete_vector_record(entry_id)
+            await self._delete_graph_for_memory(entry_id)
             self._index.pop(entry_id, None)
 
         # Remove from index (protected by lock to prevent lost updates)
@@ -981,6 +1321,7 @@ class FileMemoryStore:
             self._index[entry.id] = entry
             await self._save_session_entry(entry)
             await self._upsert_vector_record(entry)
+            await self._index_graph_record(entry)
             return entry.id
 
         # For LONG_TERM and DAILY: compute deterministic ID from content
@@ -1006,6 +1347,7 @@ class FileMemoryStore:
         # Persist to markdown
         await self._append_to_markdown(target_path, entry)
         await self._upsert_vector_record(entry)
+        await self._index_graph_record(entry)
 
         return entry.id
 
@@ -1092,8 +1434,417 @@ class FileMemoryStore:
             self._rewrite_markdown(Path(source))
 
         await self._delete_vector_record(entry_id)
+        await self._delete_graph_for_memory(entry_id)
 
         return True
+
+    async def update_entry(
+        self,
+        entry_id: str,
+        *,
+        content: str | None = None,
+        tags: list[str] | None = None,
+    ) -> bool:
+        """Update a memory entry in-place and re-index vector/graph records."""
+        entry = self._index.get(entry_id)
+        if not entry:
+            return False
+
+        if content is not None:
+            stripped = content.strip()
+            if not stripped:
+                return False
+            entry.content = stripped
+
+        if tags is not None:
+            entry.tags = [str(tag).strip() for tag in tags if str(tag).strip()]
+
+        entry.updated_at = datetime.now(tz=UTC)
+
+        source = entry.metadata.get("source")
+        if source:
+            self._rewrite_markdown(Path(source))
+        elif entry.type == MemoryType.SESSION and entry.session_key:
+            # Session edits are not currently supported for JSON history.
+            return False
+
+        await self._delete_vector_record(entry_id)
+        await self._delete_graph_for_memory(entry_id)
+        await self._upsert_vector_record(entry)
+        await self._index_graph_record(entry)
+        self._inv_dirty = True
+        return True
+
+    async def get_graph_snapshot(
+        self,
+        *,
+        user_id: str = "default",
+        query: str | None = None,
+        limit: int = 200,
+    ) -> dict:
+        """Return a lightweight graph snapshot for dashboard visualization."""
+
+        def _snapshot_sync() -> dict:
+            with sqlite3.connect(self._graph_db_path) as conn:
+                if query and query.strip():
+                    like = f"%{query.strip().lower()}%"
+                    nodes = conn.execute(
+                        """
+                        SELECT entity_id, display_name, mention_count, last_seen
+                        FROM entities
+                        WHERE user_scope = ? AND (entity_key LIKE ? OR display_name LIKE ?)
+                        ORDER BY mention_count DESC, last_seen DESC
+                        LIMIT ?
+                        """,
+                        (user_id, like, like, limit),
+                    ).fetchall()
+                else:
+                    nodes = conn.execute(
+                        """
+                        SELECT entity_id, display_name, mention_count, last_seen
+                        FROM entities
+                        WHERE user_scope = ?
+                        ORDER BY mention_count DESC, last_seen DESC
+                        LIMIT ?
+                        """,
+                        (user_id, limit),
+                    ).fetchall()
+
+                node_ids = [str(row[0]) for row in nodes]
+                if node_ids:
+                    placeholders = ",".join("?" for _ in node_ids)
+                    edge_rows = conn.execute(
+                        f"""
+                           SELECT r.relationship_id,
+                               r.source_entity_id,
+                               r.target_entity_id,
+                               se.display_name,
+                               te.display_name,
+                               r.relation_type,
+                               r.weight,
+                               r.last_seen
+                           FROM relationships r
+                           JOIN entities se ON se.entity_id = r.source_entity_id
+                           JOIN entities te ON te.entity_id = r.target_entity_id
+                           WHERE r.user_scope = ?
+                             AND r.source_entity_id IN ({placeholders})
+                             AND r.target_entity_id IN ({placeholders})
+                        ORDER BY r.weight DESC, r.last_seen DESC
+                        LIMIT ?
+                        """,
+                        (user_id, *node_ids, *node_ids, limit),
+                    ).fetchall()
+                else:
+                    edge_rows = []
+
+            return {
+                "nodes": [
+                    {
+                        "id": row[0],
+                        "name": row[1],
+                        "count": int(row[2]),
+                        "last_seen": row[3],
+                    }
+                    for row in nodes
+                ],
+                "edges": [
+                    {
+                        "id": row[0],
+                        "source": row[1],
+                        "target": row[2],
+                        "source_name": row[3],
+                        "target_name": row[4],
+                        "relation": row[5],
+                        "weight": int(row[6]),
+                        "last_seen": row[7],
+                    }
+                    for row in edge_rows
+                ],
+            }
+
+        return await asyncio.to_thread(_snapshot_sync)
+
+    async def get_graph_svg(
+        self,
+        *,
+        user_id: str = "default",
+        query: str | None = None,
+        limit: int = 200,
+        width: int = 800,
+        height: int = 400,
+    ) -> str:
+        """Generate SVG visualization of the memory knowledge graph using networkx."""
+
+        def _generate_svg_sync() -> str:
+            import math
+
+            try:
+                import networkx as nx
+            except ImportError:
+                fallback_svg = (
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">'
+                    '<text x="10" y="20" fill="rgba(255,255,255,0.6)">networkx not installed</text>'
+                    "</svg>"
+                )
+                return fallback_svg
+
+            # Fetch graph data
+            with sqlite3.connect(self._graph_db_path) as conn:
+                if query and query.strip():
+                    like = f"%{query.strip().lower()}%"
+                    nodes = conn.execute(
+                        """
+                        SELECT entity_id, display_name, mention_count
+                        FROM entities
+                        WHERE user_scope = ? AND (entity_key LIKE ? OR display_name LIKE ?)
+                        ORDER BY mention_count DESC LIMIT ?
+                        """,
+                        (user_id, like, like, limit),
+                    ).fetchall()
+                else:
+                    nodes = conn.execute(
+                        """
+                        SELECT entity_id, display_name, mention_count
+                        FROM entities
+                        WHERE user_scope = ?
+                        ORDER BY mention_count DESC LIMIT ?
+                        """,
+                        (user_id, limit),
+                    ).fetchall()
+
+                node_ids = [str(row[0]) for row in nodes]
+                node_map = {str(row[0]): row[1] for row in nodes}
+
+                if node_ids:
+                    placeholders = ",".join("?" for _ in node_ids)
+                    edge_rows = conn.execute(
+                        f"""
+                        SELECT r.source_entity_id, r.target_entity_id, r.relation_type, r.weight
+                        FROM relationships r
+                        WHERE r.user_scope = ?
+                          AND r.source_entity_id IN ({placeholders})
+                          AND r.target_entity_id IN ({placeholders})
+                        ORDER BY r.weight DESC LIMIT ?
+                        """,
+                        (user_id, *node_ids, *node_ids, limit),
+                    ).fetchall()
+                else:
+                    edge_rows = []
+
+            if not node_ids:
+                empty_svg = (
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400">'
+                    '<text x="10" y="20" fill="rgba(255,255,255,0.6)">No graph data</text>'
+                    "</svg>"
+                )
+                return empty_svg
+
+            # Build networkx graph
+            G = nx.Graph()
+            for node_id in node_ids:
+                count = next((n[2] for n in nodes if str(n[0]) == node_id), 1)
+                G.add_node(node_id, label=node_map.get(node_id, node_id), count=count)
+
+            for src, tgt, rel_type, weight in edge_rows:
+                G.add_edge(str(src), str(tgt), label=rel_type, weight=weight)
+
+            # Layout computation
+            try:
+                pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
+            except Exception:
+                pos = nx.random_layout(G)
+
+            # Normalize positions to fit SVG canvas
+            xs = [x for x, y in pos.values()]
+            ys = [y for x, y in pos.values()]
+            if xs and ys:
+                x_min, x_max = min(xs), max(xs)
+                y_min, y_max = min(ys), max(ys)
+                x_range = x_max - x_min if x_max > x_min else 1
+                y_range = y_max - y_min if y_max > y_min else 1
+                margin = 40
+                normalized_pos = {}
+                for node, (x, y) in pos.items():
+                    nx_norm = ((x - x_min) / x_range) * (width - 2 * margin) + margin
+                    ny_norm = ((y - y_min) / y_range) * (height - 2 * margin) + margin
+                    normalized_pos[node] = (nx_norm, ny_norm)
+            else:
+                normalized_pos = pos
+
+            # Generate SVG
+            svg_header = (
+                f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+                f'style="background: rgba(0,0,0,0.4);">'
+            )
+            svg_parts = [svg_header]
+
+            # Draw edges
+            for src, tgt, data in G.edges(data=True):
+                x1, y1 = normalized_pos.get(src, (width / 2, height / 2))
+                x2, y2 = normalized_pos.get(tgt, (width / 2, height / 2))
+                rel_label = data.get("label", "related")
+                svg_parts.append(
+                    f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+                    f'stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>'
+                )
+                # Draw arrowhead
+                angle = math.atan2(y2 - y1, x2 - x1)
+                arrow_size = 8
+                ax1 = x2 - arrow_size * math.cos(angle - math.pi / 6)
+                ay1 = y2 - arrow_size * math.sin(angle - math.pi / 6)
+                ax2 = x2 - arrow_size * math.cos(angle + math.pi / 6)
+                ay2 = y2 - arrow_size * math.sin(angle + math.pi / 6)
+                svg_parts.append(
+                    f'<polygon points="{x2:.1f},{y2:.1f} {ax1:.1f},{ay1:.1f} {ax2:.1f},{ay2:.1f}" '
+                    f'fill="rgba(255,255,255,0.25)"/>'
+                )
+                # Draw edge label
+                mid_x = (x1 + x2) / 2
+                mid_y = (y1 + y2) / 2
+                text_style = (
+                    f'<text x="{mid_x:.1f}" y="{mid_y:.1f}" font-size="9" '
+                    f'fill="rgba(255,255,255,0.5)" text-anchor="middle" '
+                    f'pointer-events="none">{rel_label}</text>'
+                )
+                svg_parts.append(text_style)
+
+            # Draw nodes
+            for node in G.nodes():
+                x, y = normalized_pos.get(node, (width / 2, height / 2))
+                count = G.nodes[node].get("count", 1)
+                label = G.nodes[node].get("label", node)
+                node_size = max(20, min(50, 20 + count * 2))
+
+                svg_parts.append(
+                    f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{node_size / 2:.1f}" '
+                    f'fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.4)" '
+                    f'stroke-width="1.5"/>'
+                )
+                svg_parts.append(
+                    f'<text x="{x:.1f}" y="{y:.1f}" font-size="11" font-family="system-ui" '
+                    f'fill="rgba(255,255,255,0.9)" text-anchor="middle" dominant-baseline="middle" '
+                    f'pointer-events="none">{label[:12]}</text>'
+                )
+
+            svg_parts.append("</svg>")
+            return "".join(svg_parts)
+
+        return await asyncio.to_thread(_generate_svg_sync)
+
+    async def get_memory_stats(self) -> dict:
+        """Return memory stats for dashboard/API display."""
+        by_type = {
+            MemoryType.LONG_TERM.value: 0,
+            MemoryType.DAILY.value: 0,
+            MemoryType.SESSION.value: 0,
+        }
+        for entry in self._index.values():
+            by_type[entry.type.value] += 1
+
+        def _vector_count() -> int:
+            if not self._vector_db_path.exists():
+                return 0
+            with sqlite3.connect(self._vector_db_path) as conn:
+                row = conn.execute("SELECT COUNT(*) FROM memory_vectors").fetchone()
+            return int(row[0]) if row else 0
+
+        def _graph_counts() -> tuple[int, int]:
+            if not self._graph_db_path.exists():
+                return (0, 0)
+            with sqlite3.connect(self._graph_db_path) as conn:
+                entities = conn.execute("SELECT COUNT(*) FROM entities").fetchone()
+                relationships = conn.execute("SELECT COUNT(*) FROM relationships").fetchone()
+            return (
+                int(entities[0]) if entities else 0,
+                int(relationships[0]) if relationships else 0,
+            )
+
+        vector_entries = await asyncio.to_thread(_vector_count)
+        graph_entities, graph_relationships = await asyncio.to_thread(_graph_counts)
+
+        return {
+            "backend": "file",
+            "total_memories": len(self._index),
+            "by_type": by_type,
+            "vector_backend": self._vector_backend,
+            "vector_enabled": self._vector_enabled,
+            "vector_entries": vector_entries,
+            "graph_enabled": self._graph_enabled,
+            "graph_entities": graph_entities,
+            "graph_relationships": graph_relationships,
+        }
+
+    async def prune_memories(self, older_than_days: int = 30) -> dict:
+        """Prune old daily memories and clean orphan vector/graph records."""
+        cutoff = datetime.now(tz=UTC).timestamp() - (older_than_days * 86400)
+        to_delete: list[str] = []
+        for entry_id, entry in self._index.items():
+            if entry.type != MemoryType.DAILY:
+                continue
+            if _ensure_utc(entry.created_at).timestamp() < cutoff:
+                to_delete.append(entry_id)
+
+        deleted = 0
+        for entry_id in to_delete:
+            if await self.delete(entry_id):
+                deleted += 1
+
+        await self._cleanup_orphan_records()
+        return {
+            "ok": True,
+            "older_than_days": older_than_days,
+            "deleted_daily_memories": deleted,
+        }
+
+    async def _cleanup_orphan_records(self) -> None:
+        """Remove vector/graph rows that no longer map to in-memory entries."""
+        valid_ids = set(self._index.keys())
+
+        def _cleanup_vector_sync() -> None:
+            if not self._vector_db_path.exists():
+                return
+            with sqlite3.connect(self._vector_db_path) as conn:
+                if valid_ids:
+                    placeholders = ",".join("?" for _ in valid_ids)
+                    conn.execute(
+                        f"DELETE FROM memory_vectors WHERE doc_id NOT IN ({placeholders})",
+                        tuple(valid_ids),
+                    )
+                else:
+                    conn.execute("DELETE FROM memory_vectors")
+
+        def _cleanup_graph_sync() -> None:
+            if not self._graph_db_path.exists():
+                return
+            with sqlite3.connect(self._graph_db_path) as conn:
+                if valid_ids:
+                    placeholders = ",".join("?" for _ in valid_ids)
+                    conn.execute(
+                        f"DELETE FROM memory_entity_links WHERE memory_id NOT IN ({placeholders})",
+                        tuple(valid_ids),
+                    )
+                    conn.execute(
+                        (
+                            "DELETE FROM relationship_evidence "
+                            f"WHERE memory_id NOT IN ({placeholders})"
+                        ),
+                        tuple(valid_ids),
+                    )
+                else:
+                    conn.execute("DELETE FROM memory_entity_links")
+                    conn.execute("DELETE FROM relationship_evidence")
+
+                conn.execute(
+                    "DELETE FROM relationships WHERE relationship_id NOT IN "
+                    "(SELECT DISTINCT relationship_id FROM relationship_evidence)"
+                )
+                conn.execute(
+                    "DELETE FROM entities WHERE entity_id NOT IN "
+                    "(SELECT DISTINCT entity_id FROM memory_entity_links)"
+                )
+
+        await asyncio.to_thread(_cleanup_vector_sync)
+        await asyncio.to_thread(_cleanup_graph_sync)
 
     def _rewrite_markdown(self, path: Path) -> None:
         """Reconstruct a markdown file from remaining index entries for that file."""
@@ -1252,5 +2003,6 @@ class FileMemoryStore:
         count, entry_ids = await asyncio.to_thread(_clear)
         for entry_id in entry_ids:
             await self._delete_vector_record(entry_id)
+            await self._delete_graph_for_memory(entry_id)
             self._index.pop(entry_id, None)
         return count
