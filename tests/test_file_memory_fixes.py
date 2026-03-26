@@ -909,6 +909,7 @@ class TestGraphSVGHtmlEscaping:
 
     async def test_direct_entity_escaping_less_than(self, tmp_path):
         """Test HTML escaping by directly inserting entities with < via SQL."""
+        pytest.importorskip("networkx")
         store = FileMemoryStore(
             base_path=tmp_path,
             vector_enabled=True,
