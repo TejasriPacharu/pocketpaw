@@ -383,6 +383,9 @@
     opacity: 0;
     transition: opacity 200ms ease;
     border-top: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0 !important;
+    border-left: none !important; border-right: none !important; border-bottom: none !important;
+    box-shadow: none !important;
   }
   .files-visible { opacity: 1; }
 

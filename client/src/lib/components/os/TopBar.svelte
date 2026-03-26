@@ -1,9 +1,10 @@
 <!-- TopBar.svelte — Transparent top navigation bar for the Agent OS.
-     Updated: 2026-03-22 — Home button, Lucide icons throughout.
+     Updated: 2026-03-25 — Figma-style collaboration presence bar showing online team members.
 -->
 <script lang="ts">
   import Plus from "@lucide/svelte/icons/plus";
   import Home from "@lucide/svelte/icons/home";
+  import Users from "@lucide/svelte/icons/users";
 
   type Tab = "pockets" | "files" | "chat";
 
@@ -28,6 +29,23 @@
     { id: "files", label: "Files" },
     { id: "chat", label: "Chat" },
   ];
+
+  // --- Collaboration presence (Figma-style) ---
+  type Presence = {
+    id: string; name: string; initials: string; color: string;
+    kind: "human" | "agent"; location: string;
+    cursor?: boolean;
+  };
+
+  const ONLINE_PRESENCE: Presence[] = [
+    { id: "robert", name: "Robert", initials: "RK", color: "#FF6B35", kind: "human", location: "NexWrk HQ", cursor: true },
+    { id: "diana", name: "Diana", initials: "DR", color: "#E040FB", kind: "human", location: "NexWrk Events" },
+    { id: "cfo", name: "CFO", initials: "CF", color: "#30D158", kind: "agent", location: "Revenue analysis" },
+    { id: "cmo", name: "CMO", initials: "CM", color: "#0A84FF", kind: "agent", location: "Guest reviews" },
+  ];
+
+  let showPresenceTooltip = $state<string | null>(null);
+  let presenceDropdownOpen = $state(false);
 </script>
 
 <header class="topbar">
@@ -60,8 +78,110 @@
     {/each}
   </nav>
 
-  <!-- Right: Actions -->
+  <!-- Right: Presence + Actions -->
   <div class="topbar-right">
+    <!-- Figma-style collaboration presence -->
+    <div class="relative flex items-center mr-1.5">
+      <!-- Avatar row — click to open dropdown -->
+      <button
+        class="flex items-center cursor-pointer hover:opacity-90 transition-opacity"
+        onclick={() => { presenceDropdownOpen = !presenceDropdownOpen; }}
+      >
+        {#each ONLINE_PRESENCE as person}
+          <div class="relative" style="margin-left:-4px">
+            <div
+              class={`w-6 h-6 ${person.kind === 'human' ? 'rounded-full' : 'rounded-md'} flex items-center justify-center text-[8px] font-bold text-white border-[1.5px] border-black/60 relative`}
+              style="background:{person.color}"
+            >
+              {person.initials}
+            </div>
+            {#if person.cursor}
+              <div class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full" style="background:{person.color}; box-shadow: 0 0 4px {person.color}80"></div>
+            {/if}
+          </div>
+        {/each}
+        <div class="w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold text-white/40 bg-white/[0.08] border-[1.5px] border-black/60" style="margin-left:-4px">
+          <Plus size={10} strokeWidth={2.5} />
+        </div>
+      </button>
+
+      <!-- Dropdown panel -->
+      {#if presenceDropdownOpen}
+        <!-- Backdrop -->
+        <div class="fixed inset-0 z-40" onclick={() => { presenceDropdownOpen = false; }}></div>
+
+        <div class="absolute top-8 right-0 z-50 w-72 rounded-xl border border-white/10 shadow-2xl overflow-hidden" style="background:rgba(30,30,28,0.96); backdrop-filter:blur(20px)">
+          <!-- Header -->
+          <div class="flex items-center justify-between px-3.5 py-2.5 border-b border-white/[0.06]">
+            <span class="text-[12px] font-semibold text-white/80">Collaborators</span>
+            <span class="text-[10px] text-white/30">{ONLINE_PRESENCE.length} online</span>
+          </div>
+
+          <!-- Online members -->
+          <div class="py-1.5">
+            {#each ONLINE_PRESENCE as person}
+              <div class="flex items-center gap-2.5 px-3.5 py-2 hover:bg-white/[0.04] transition-colors cursor-default">
+                <div class="relative shrink-0">
+                  <div
+                    class={`w-8 h-8 ${person.kind === 'human' ? 'rounded-full' : 'rounded-lg'} flex items-center justify-center text-[10px] font-bold text-white`}
+                    style="background:{person.color}"
+                  >
+                    {person.initials}
+                  </div>
+                  <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-[1.5px] border-[#1e1e1c] bg-[#30D158]"></div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[12px] font-medium text-white/85">{person.name}</span>
+                    {#if person.kind === "agent"}
+                      <span class="text-[8px] font-bold text-white/30 bg-white/[0.06] px-1.5 py-0.5 rounded uppercase">Agent</span>
+                    {/if}
+                  </div>
+                  <span class="text-[10px] text-white/35">{person.location}</span>
+                </div>
+                {#if person.cursor}
+                  <div class="w-2 h-2 rounded-full animate-pulse" style="background:{person.color}; box-shadow: 0 0 6px {person.color}60"></div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+
+          <!-- Offline section -->
+          <div class="border-t border-white/[0.06] py-1.5">
+            <div class="px-3.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/20">Offline</div>
+            <div class="flex items-center gap-2.5 px-3.5 py-2 cursor-default">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white opacity-40" style="background:#30D158">RS</div>
+              <div class="flex-1 min-w-0">
+                <span class="text-[12px] font-medium text-white/40">Rohit</span>
+                <span class="text-[10px] text-white/20 block">Last seen 1h ago</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2.5 px-3.5 py-2 cursor-default">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white opacity-40" style="background:#FEBC2E">RR</div>
+              <div class="flex-1 min-w-0">
+                <span class="text-[12px] font-medium text-white/40">Richie</span>
+                <span class="text-[10px] text-white/20 block">Last seen 3h ago</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="border-t border-white/[0.06] p-2">
+            <button class="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-[12px] font-medium text-[#0A84FF] hover:bg-[#0A84FF]/10 transition-colors">
+              <Plus size={14} strokeWidth={2} />
+              Invite to workspace
+            </button>
+            <button class="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-[12px] font-medium text-white/50 hover:bg-white/[0.04] transition-colors">
+              <Users size={14} strokeWidth={1.8} />
+              Manage team
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <div class="w-px h-4 bg-white/10 mx-1"></div>
+
     <button class="plus-btn" onclick={onPlusClick} aria-label="Open command palette" title="Command Palette (⌘K)">
       <Plus size={14} strokeWidth={2} />
     </button>
