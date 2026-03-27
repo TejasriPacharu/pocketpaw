@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import platform
+import subprocess
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -120,7 +121,6 @@ class CredentialStore:
 
     def _get_macos_hardware_uuid(self) -> str:
         """Extract macOS hardware UUID or fallback to system identifier."""
-        import subprocess
 
         # 1. Use stable constant for CI/GitHub Actions
         if os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "true":
