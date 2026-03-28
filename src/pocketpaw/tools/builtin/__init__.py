@@ -8,6 +8,7 @@
 #   - 2026-02-09: Converted to lazy __getattr__ to avoid ImportError when optional deps missing
 #   - 2026-02-17: Added HealthCheckTool, ErrorLogTool, ConfigDoctorTool for health engine
 #   - 2026-03-12: Added EditFileTool, RunPythonTool, InstallPackageTool (issue #581)
+#   - 2026-03-27: Added AddWidgetTool, RemoveWidgetTool for pocket mutations
 #   - 2026-03-28: Added Fabric + Instinct enterprise tools (guarded by ee/ availability)
 
 import importlib as _importlib
@@ -74,6 +75,9 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "RunPythonTool": (".python_exec", "RunPythonTool"),
     "InstallPackageTool": (".pip_install", "InstallPackageTool"),
     "DeliverArtifactTool": (".deliver", "DeliverArtifactTool"),
+    "CreatePocketTool": (".pocket", "CreatePocketTool"),
+    "AddWidgetTool": (".pocket", "AddWidgetTool"),
+    "RemoveWidgetTool": (".pocket", "RemoveWidgetTool"),
     "DiscordCLITool": (".discord", "DiscordCLITool"),
 }
 
