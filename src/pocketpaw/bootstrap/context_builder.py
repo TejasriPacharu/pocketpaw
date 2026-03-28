@@ -74,7 +74,7 @@ class AgentContextBuilder:
             context = await self.bootstrap.get_context()
             memory_context = ""
 
-        base_prompt = context.to_system_prompt()
+        base_prompt = context.to_system_prompt() or ""
         parts = [base_prompt]
 
         # 2. Inject memory context (scoped to sender)
@@ -208,6 +208,7 @@ class AgentContextBuilder:
             except Exception:
                 pass  # AGENTS.md failure never breaks prompt building
 
+        parts = [p for p in parts if isinstance(p, str) and p]
         return "\n\n".join(parts)
 
     @staticmethod
