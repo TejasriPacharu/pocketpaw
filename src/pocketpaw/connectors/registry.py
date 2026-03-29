@@ -1,13 +1,57 @@
 # Connector registry — discovers and manages available connectors.
 # Created: 2026-03-27 — Scans connectors/ dir for YAML definitions.
+# Updated: 2026-03-30 — Native adapter support for database connectors.
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
-from pocketpaw.connectors.protocol import ConnectorStatus
+from pocketpaw.connectors.protocol import (
+    ActionResult,
+    ActionSchema,
+    ConnectionResult,
+    ConnectorStatus,
+    SyncResult,
+)
 from pocketpaw.connectors.yaml_engine import ConnectorDef, DirectRESTAdapter, parse_connector_yaml
+
+
+@runtime_checkable
+class AnyAdapter(Protocol):
+    """Union type for all adapter kinds."""
+
+    @property
+    def name(self) -> str: ...
+    @property
+    def display_name(self) -> str: ...
+    async def connect(self, pocket_id: str, config: dict[str, Any]) -> ConnectionResult: ...
+    async def disconnect(self, pocket_id: str) -> bool: ...
+    async def actions(self) -> list[ActionSchema]: ...
+    async def execute(self, action: str, params: dict[str, Any]) -> ActionResult: ...
+
+
+# Connectors handled by native Python adapters instead of YAML/REST.
+# SQL databases use DatabaseAdapter, MongoDB uses MongoDBAdapter.
+_SQL_CONNECTORS: set[str] = {"postgresql", "mysql", "mssql", "sqlite"}
+_NOSQL_CONNECTORS: set[str] = {"mongodb"}
+
+
+def _create_native_adapter(connector_name: str) -> AnyAdapter | None:
+    """Create a native adapter for database connectors."""
+    if connector_name in _SQL_CONNECTORS:
+        try:
+            from pocketpaw.connectors.db_adapter import DatabaseAdapter
+            return DatabaseAdapter(connector_name)
+        except Exception:
+            return None
+    if connector_name in _NOSQL_CONNECTORS:
+        try:
+            from pocketpaw.connectors.mongo_adapter import MongoDBAdapter
+            return MongoDBAdapter()
+        except Exception:
+            return None
+    return None
 
 
 class ConnectorRegistry:
@@ -16,7 +60,7 @@ class ConnectorRegistry:
     def __init__(self, connectors_dir: Path | None = None) -> None:
         self._connectors_dir = connectors_dir or Path("connectors")
         self._definitions: dict[str, ConnectorDef] = {}
-        self._instances: dict[str, DirectRESTAdapter] = {}  # key = "{pocket_id}:{connector_name}"
+        self._instances: dict[str, AnyAdapter] = {}  # key = "{pocket_id}:{connector_name}"
         self._scan()
 
     def _scan(self) -> None:
@@ -47,7 +91,7 @@ class ConnectorRegistry:
         """Get a connector definition by name."""
         return self._definitions.get(name)
 
-    def get_adapter(self, pocket_id: str, connector_name: str) -> DirectRESTAdapter | None:
+    def get_adapter(self, pocket_id: str, connector_name: str) -> AnyAdapter | None:
         """Get an active adapter instance for a pocket+connector."""
         key = f"{pocket_id}:{connector_name}"
         return self._instances.get(key)
@@ -58,7 +102,14 @@ class ConnectorRegistry:
         if not defn:
             return None
 
-        adapter = DirectRESTAdapter(defn)
+        # Use native adapter if available, otherwise fall back to YAML/REST.
+        adapter: AnyAdapter
+        native = _create_native_adapter(connector_name)
+        if native is not None:
+            adapter = native
+        else:
+            adapter = DirectRESTAdapter(defn)
+
         result = await adapter.connect(pocket_id, config)
 
         if result.success:

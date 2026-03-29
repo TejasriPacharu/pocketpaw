@@ -66,6 +66,15 @@ dependencies = [
 [project.optional-dependencies]
 # --- Feature extras ---
 vector = ["chromadb"]
+databases = [
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",       # PostgreSQL
+    "aiomysql>=0.2.0",       # MySQL / MariaDB
+    "aiosqlite>=0.20.0",     # SQLite
+]
+postgresql = ["sqlalchemy[asyncio]>=2.0.0", "asyncpg>=0.29.0"]
+mysql = ["sqlalchemy[asyncio]>=2.0.0", "aiomysql>=0.2.0"]
+mongodb = ["motor>=3.3.0"]
 dashboard = [
     # Kept for backward compat — dashboard deps are now in core.
     # Users with `pip install pocketpaw[dashboard]` in scripts won't break.
