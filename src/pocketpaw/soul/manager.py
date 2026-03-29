@@ -276,6 +276,20 @@ class SoulManager:
             logger.exception("Failed to reload soul")
             return False
 
+    async def forget(self, query: str) -> dict[str, Any]:
+        """Forget memories matching query (v0.2.8+)."""
+        if self.soul is None:
+            return {"error": "Soul not available"}
+        if not hasattr(self.soul, "forget"):
+            return {"error": "Requires soul-protocol >= 0.2.8."}
+        try:
+            result = await self.soul.forget(query)
+            self._dirty = True
+            return result if isinstance(result, dict) else {"result": str(result)}
+        except Exception:
+            logger.debug("Soul forget() failed", exc_info=True)
+            return {"error": "forget() failed"}
+
     async def save(self) -> None:
         """Persist the soul to disk."""
         if self.soul is None:
@@ -421,8 +435,11 @@ class SoulManager:
         if self._tools_cache is not None:
             return self._tools_cache
         from pocketpaw.paw.tools import (
+            SoulContextTool,
+            SoulCoreMemoryTool,
             SoulEditCoreTool,
             SoulEvaluateTool,
+            SoulForgetTool,
             SoulRecallTool,
             SoulReloadTool,
             SoulRememberTool,
@@ -436,5 +453,9 @@ class SoulManager:
             SoulStatusTool(self.soul),
             SoulEvaluateTool(self.soul, self),
             SoulReloadTool(self),
+            # v0.2.8 tools
+            SoulForgetTool(self.soul),
+            SoulCoreMemoryTool(self.soul),
+            SoulContextTool(self.soul),
         ]
         return self._tools_cache

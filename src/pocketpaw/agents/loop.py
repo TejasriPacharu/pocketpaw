@@ -925,8 +925,20 @@ class AgentLoop:
                 event_data: dict[str, Any] = {
                     "mood": getattr(state, "mood", None),
                     "energy": getattr(state, "energy", None),
+                    "social_battery": getattr(state, "social_battery", None),
+                    "focus": getattr(state, "focus", None),
+                    "memory_count": soul.memory_count if hasattr(soul, "memory_count") else None,
                     "session_key": session_key,
                 }
+
+                # v0.2.8+: Include bond state if available
+                if hasattr(soul, "bond") and soul.bond:
+                    try:
+                        event_data["bond"] = (
+                            soul.bond.model_dump() if hasattr(soul.bond, "model_dump") else str(soul.bond)
+                        )
+                    except Exception:
+                        pass
 
                 # v0.2.4+: Run rubric self-evaluation (non-blocking)
                 eval_result = await self._soul_manager.evaluate(user_input, agent_output)
