@@ -21,8 +21,8 @@ auth:
       description: MongoDB port (default 27017)
       required: false
     - name: MONGO_DATABASE
-      description: Database name
-      required: true
+      description: Database name (auto-detected from URI if omitted)
+      required: false
     - name: MONGO_USER
       description: Username (if auth enabled)
       required: false

@@ -61,11 +61,18 @@ class MongoDBAdapter:
 
         db_name = self._config.get("MONGO_DATABASE", "")
         if not db_name:
+            # Try to extract database name from the URI path (e.g. mongodb+srv://host/mydb)
+            from urllib.parse import urlparse
+            parsed = urlparse(uri)
+            if parsed.path and parsed.path.strip("/"):
+                db_name = parsed.path.strip("/").split("?")[0]
+
+        if not db_name:
             return ConnectionResult(
                 success=False,
                 connector_name=self.name,
                 status=ConnectorStatus.ERROR,
-                message="Missing required credential: MONGO_DATABASE",
+                message="No database specified. Provide MONGO_DATABASE or include it in MONGO_URI.",
             )
 
         try:
