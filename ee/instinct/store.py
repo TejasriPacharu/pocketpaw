@@ -1,5 +1,6 @@
 # Instinct store — async SQLite operations for the decision pipeline.
 # Created: 2026-03-28 — Action lifecycle + audit log.
+# Updated: 2026-03-30 — Added limit param to _query_actions, list_actions() public method.
 
 from __future__ import annotations
 
@@ -208,8 +209,20 @@ class InstinctStore:
     async def for_pocket(self, pocket_id: str) -> list[Action]:
         return await self._query_actions(pocket_id=pocket_id)
 
+    async def list_actions(
+        self,
+        pocket_id: str | None = None,
+        status: ActionStatus | None = None,
+        limit: int = 50,
+    ) -> list[Action]:
+        """Public method — list actions with optional filters and limit."""
+        return await self._query_actions(status=status, pocket_id=pocket_id, limit=limit)
+
     async def _query_actions(
-        self, status: ActionStatus | None = None, pocket_id: str | None = None,
+        self,
+        status: ActionStatus | None = None,
+        pocket_id: str | None = None,
+        limit: int = 500,
     ) -> list[Action]:
         conditions: list[str] = []
         params: list[Any] = []
@@ -220,12 +233,14 @@ class InstinctStore:
             conditions.append("pocket_id = ?")
             params.append(pocket_id)
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        params.append(limit)
 
         await self._ensure_schema()
         async with self._conn() as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
-                f"SELECT * FROM instinct_actions {where} ORDER BY created_at DESC", params
+                f"SELECT * FROM instinct_actions {where} ORDER BY created_at DESC LIMIT ?",
+                params,
             ) as cur:
                 return [self._row_to_action(row) async for row in cur]
 
