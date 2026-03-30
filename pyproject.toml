@@ -1,4 +1,4 @@
-# Updated: 2026-03-17 — Release 0.4.10: Soul Protocol, agent primitives, Discord overhaul, LiteLLM.
+# Updated: 2026-03-30 — Bump all dependency minimums to latest.
 [project]
 name = "pocketpaw"
 version = "0.4.15"
@@ -41,13 +41,13 @@ dependencies = [
     # HTTP client (used everywhere)
     "httpx>=0.26.0",
     # LLM Clients
-    "openai>=1.60.0",
-    "anthropic>=0.45.0",
+    "openai>=2.30.0",
+    "anthropic>=0.86.0",
     # Agent Backend (recommended default)
-    "claude-agent-sdk>=0.1.30",
+    "claude-agent-sdk>=0.1.52",
     # Dashboard (default mode — must be in core so `pip install pocketpaw` just works)
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.31.1",
+    "fastapi>=0.135.2",
+    "uvicorn[standard]>=0.42.0",
     "jinja2>=3.1.0",
     "qrcode[pil]>=7.4",
     "python-multipart>=0.0.22",
@@ -58,7 +58,7 @@ dependencies = [
     "apscheduler>=3.10.0",
     "python-dateutil>=2.8.0",
     # Credential Encryption
-    "cryptography>=42.0",
+    "cryptography>=46.0.6",
     # Image basics
     "pillow>=10.0.0",
 ]
@@ -80,7 +80,7 @@ dashboard = [
     # Users with `pip install pocketpaw[dashboard]` in scripts won't break.
 ]
 telegram = [
-    "python-telegram-bot>=21.0",
+    "python-telegram-bot>=22.7",
 ]
 browser = [
     "playwright>=1.50.0",
@@ -90,23 +90,23 @@ desktop = [
     "pyautogui>=0.9.54",
 ]
 openai-agents = [
-    "openai-agents>=0.2.0",
+    "openai-agents>=0.13.2",
 ]
 google-adk = [
-    "google-adk>=1.0.0",
+    "google-adk>=1.28.0",
 ]
 copilot-sdk = [
-    "github-copilot-sdk>=0.1.0",
+    "github-copilot-sdk>=0.2.0",
 ]
 deep-agents = [
-    "deepagents>=0.1.0",
+    "deepagents>=0.4.12",
     "langchain-mcp-adapters>=0.1.0",
 ]
 litellm = [
     "litellm>=1.40.0",
 ]
 memory = [
-    "mem0ai>=0.1.115",
+    "mem0ai>=1.0.9",
     "ollama>=0.6.1",
 ]
 soul = [
@@ -115,10 +115,10 @@ soul = [
 
 # --- Channel extras ---
 discord = [
-    "discord-cli-agent>=0.6.0",
+    "discord-cli-agent>=0.7.0",
 ]
 slack = [
-    "slack-bolt>=1.20.0",
+    "slack-bolt>=1.21.0",
 ]
 whatsapp-personal = [
     "neonize>=0.3.14",
@@ -131,25 +131,25 @@ teams = [
     "botbuilder-integration-aiohttp>=4.16.0",
 ]
 gchat = [
-    "google-api-python-client>=2.100.0",
-    "google-auth>=2.25.0",
+    "google-api-python-client>=2.193.0",
+    "google-auth>=2.49.1",
 ]
 
 # --- Tool extras ---
 image = [
-    "google-genai>=1.0.0",
+    "google-genai>=1.69.0",
 ]
 extract = [
     "html2text>=2020.1.16",
 ]
 voice = [
-    "elevenlabs>=1.0.0",
+    "elevenlabs>=2.40.0",
 ]
 ocr = [
     "pytesseract>=0.3.10",
 ]
 sarvam = [
-    "sarvamai>=0.1.25",
+    "sarvamai>=0.1.27",
 ]
 mcp = [
     "mcp>=1.0.0",
@@ -159,7 +159,7 @@ recommended = [
     # browser
     "playwright>=1.50.0",
     # memory
-    "mem0ai>=0.1.115",
+    "mem0ai>=1.0.9",
     "ollama>=0.6.1",
     # desktop
     "psutil>=5.9.0",
@@ -167,19 +167,19 @@ recommended = [
 ]
 channels = [
     # telegram
-    "python-telegram-bot>=21.0",
+    "python-telegram-bot>=22.7",
     # discord
-    "discord-cli-agent>=0.6.0",
+    "discord-cli-agent>=0.7.0",
     # slack
-    "slack-bolt>=1.20.0",
+    "slack-bolt>=1.21.0",
 ]
 all-channels = [
     # telegram
-    "python-telegram-bot>=21.0",
+    "python-telegram-bot>=22.7",
     # discord
-    "discord-cli-agent>=0.6.0",
+    "discord-cli-agent>=0.7.0",
     # slack
-    "slack-bolt>=1.20.0",
+    "slack-bolt>=1.21.0",
     # whatsapp-personal
     "neonize>=0.3.14",
     # matrix
@@ -188,8 +188,8 @@ all-channels = [
     "botbuilder-core>=4.16.0",
     "botbuilder-integration-aiohttp>=4.16.0",
     # gchat
-    "google-api-python-client>=2.100.0",
-    "google-auth>=2.25.0",
+    "google-api-python-client>=2.193.0",
+    "google-auth>=2.49.1",
 ]
 all-tools = [
     # browser
@@ -198,19 +198,19 @@ all-tools = [
     "psutil>=5.9.0",
     "pyautogui>=0.9.54",
     # image
-    "google-genai>=1.0.0",
+    "google-genai>=1.69.0",
     # extract
     "html2text>=2020.1.16",
     # voice
-    "elevenlabs>=1.0.0",
+    "elevenlabs>=2.40.0",
     # ocr
     "pytesseract>=0.3.10",
     # sarvam
-    "sarvamai>=0.1.25",
+    "sarvamai>=0.1.27",
     # mcp
     "mcp>=1.0.0",
     # memory
-    "mem0ai>=0.1.115",
+    "mem0ai>=1.0.9",
     "ollama>=0.6.1",
     # soul
     "soul-protocol[engine]>=0.2.9",
@@ -222,69 +222,69 @@ all = [
     # browser
     "playwright>=1.50.0",
     # memory
-    "mem0ai>=0.1.115",
+    "mem0ai>=1.0.9",
     "ollama>=0.6.1",
     # desktop
     "psutil>=5.9.0",
     "pyautogui>=0.9.54",
     # channels
-    "python-telegram-bot>=21.0",
-    "discord-cli-agent>=0.6.0",
-    "slack-bolt>=1.20.0",
+    "python-telegram-bot>=22.7",
+    "discord-cli-agent>=0.7.0",
+    "slack-bolt>=1.21.0",
     "neonize>=0.3.14",
     "matrix-nio>=0.24.0",
     "botbuilder-core>=4.16.0",
     "botbuilder-integration-aiohttp>=4.16.0",
-    "google-api-python-client>=2.100.0",
-    "google-auth>=2.25.0",
+    "google-api-python-client>=2.193.0",
+    "google-auth>=2.49.1",
     # tools
-    "google-genai>=1.0.0",
+    "google-genai>=1.69.0",
     "html2text>=2020.1.16",
-    "elevenlabs>=1.0.0",
+    "elevenlabs>=2.40.0",
     "pytesseract>=0.3.10",
-    "sarvamai>=0.1.25",
+    "sarvamai>=0.1.27",
     "mcp>=1.0.0",
     # soul
     "soul-protocol[engine]>=0.2.9",
     # backends
-    "openai-agents>=0.2.0",
-    "google-adk>=1.0.0",
-    "github-copilot-sdk>=0.1.0",
-    "deepagents>=0.1.0",
+    "openai-agents>=0.13.2",
+    "google-adk>=1.28.0",
+    "github-copilot-sdk>=0.2.0",
+    "deepagents>=0.4.12",
     "langchain-mcp-adapters>=0.1.0",
 ]
 dev = [
     # all deps (flattened from [all])
     "playwright>=1.50.0",
-    "mem0ai>=0.1.115",
+    "mem0ai>=1.0.9",
     "ollama>=0.6.1",
     "psutil>=5.9.0",
     "pyautogui>=0.9.54",
-    "python-telegram-bot>=21.0",
-    "discord-cli-agent>=0.6.0",
-    "slack-bolt>=1.20.0",
+    "python-telegram-bot>=22.7",
+    "discord-cli-agent>=0.7.0",
+    "slack-bolt>=1.21.0",
     "neonize>=0.3.14",
     "matrix-nio>=0.24.0",
     "botbuilder-core>=4.16.0",
     "botbuilder-integration-aiohttp>=4.16.0",
-    "google-api-python-client>=2.100.0",
-    "google-auth>=2.25.0",
-    "google-genai>=1.0.0",
+    "google-api-python-client>=2.193.0",
+    "google-auth>=2.49.1",
+    "google-genai>=1.69.0",
     "html2text>=2020.1.16",
-    "elevenlabs>=1.0.0",
+    "elevenlabs>=2.40.0",
     "pytesseract>=0.3.10",
-    "sarvamai>=0.1.25",
+    "sarvamai>=0.1.27",
     "mcp>=1.0.0",
-    "openai-agents>=0.2.0",
-    "google-adk>=1.0.0",
-    "github-copilot-sdk>=0.1.0",
-    "deepagents>=0.1.0",
+    "openai-agents>=0.13.2",
+    "google-adk>=1.28.0",
+    "github-copilot-sdk>=0.2.0",
+    "deepagents>=0.4.12",
     "langchain-mcp-adapters>=0.1.0",
     # dev tools
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "pytest-playwright>=0.4.0",
-    "ruff>=0.4.0",
+    "ruff>=0.15.8",
     "mypy>=1.8.0",
 ]
 
@@ -320,34 +320,34 @@ select = ["E", "F", "I", "UP"]
 dev = [
     # all deps (flattened from [all])
     "playwright>=1.50.0",
-    "mem0ai>=0.1.115",
+    "mem0ai>=1.0.9",
     "ollama>=0.6.1",
     "psutil>=5.9.0",
     "pyautogui>=0.9.54",
-    "python-telegram-bot>=21.0",
-    "discord-cli-agent>=0.6.4",
-    "slack-bolt>=1.20.0",
+    "python-telegram-bot>=22.7",
+    "discord-cli-agent>=0.7.0",
+    "slack-bolt>=1.21.0",
     "neonize>=0.3.14",
     "matrix-nio>=0.24.0",
     "botbuilder-core>=4.16.0",
     "botbuilder-integration-aiohttp>=4.16.0",
-    "google-api-python-client>=2.100.0",
-    "google-auth>=2.25.0",
-    "google-genai>=1.0.0",
+    "google-api-python-client>=2.193.0",
+    "google-auth>=2.49.1",
+    "google-genai>=1.69.0",
     "html2text>=2020.1.16",
-    "elevenlabs>=1.0.0",
+    "elevenlabs>=2.40.0",
     "pytesseract>=0.3.10",
-    "sarvamai>=0.1.25",
+    "sarvamai>=0.1.27",
     "mcp>=1.0.0",
-    "openai-agents>=0.2.0",
-    "google-adk>=1.0.0",
-    "github-copilot-sdk>=0.1.0",
-    "deepagents>=0.1.0",
+    "openai-agents>=0.13.2",
+    "google-adk>=1.28.0",
+    "github-copilot-sdk>=0.2.0",
+    "deepagents>=0.4.12",
     "langchain-mcp-adapters>=0.1.0",
     # dev tools
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
-    "ruff>=0.4.0",
+    "ruff>=0.15.8",
     "mypy>=1.8.0",
     "pytest-playwright>=0.7.2",
 ]
