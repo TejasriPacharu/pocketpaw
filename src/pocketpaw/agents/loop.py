@@ -130,6 +130,24 @@ async def _publish_pocket_event(
         )
 
 
+def _extract_pocket_tool_policy(content: str) -> dict[str, bool] | None:
+    """Extract toolPolicy from [context:pocket] marker in message content."""
+    import json as _json
+
+    marker = "[context:pocket] "
+    idx = content.find(marker)
+    if idx < 0:
+        return None
+    json_start = idx + len(marker)
+    nl = content.find("\n", json_start)
+    json_str = content[json_start:nl] if nl > 0 else content[json_start:]
+    try:
+        ctx = _json.loads(json_str)
+        return ctx.get("toolPolicy")
+    except (ValueError, KeyError):
+        return None
+
+
 def _extract_generated_paths(text: str) -> list[str]:
     """Fallback: extract file paths under ~/.pocketpaw/generated/ from agent text."""
     return _GENERATED_PATH_RE.findall(text)
@@ -629,8 +647,31 @@ class AgentLoop:
                 SystemEvent(event_type="thinking", data={"session_key": session_key})
             )
 
+            # Per-pocket tool policy — deny tools from disabled categories
+            pocket_tool_policy = _extract_pocket_tool_policy(content)
+            pocket_deny_tools: list[str] = []
+            if pocket_tool_policy:
+                from pocketpaw.constants.tool_categories import CATEGORY_TO_GROUPS, CATEGORY_DIRECT_TOOLS
+                from pocketpaw.tools.policy import TOOL_GROUPS
+
+                for cat_id, enabled in pocket_tool_policy.items():
+                    if not enabled:
+                        for grp in CATEGORY_TO_GROUPS.get(cat_id, []):
+                            pocket_deny_tools.extend(TOOL_GROUPS.get(grp, []))
+                        pocket_deny_tools.extend(CATEGORY_DIRECT_TOOLS.get(cat_id, []))
+
             # 3. Run through AgentRouter (handles all backends)
             router = self._get_router()
+            _saved_policy = None
+            if pocket_deny_tools and hasattr(router, '_registry') and router._registry:
+                from pocketpaw.tools.policy import ToolPolicy
+                _saved_policy = router._registry._policy  # Save to restore after request
+                scoped_policy = ToolPolicy(
+                    profile=self.settings.tool_profile or "full",
+                    deny=pocket_deny_tools,
+                )
+                router._registry.set_policy(scoped_policy)
+
             full_response = ""
             media_paths: list[str] = []
             cancelled = False
@@ -799,6 +840,9 @@ class AgentLoop:
                 logger.info("Stream cancelled for session %s", session_key)
             finally:
                 await run_iter.aclose()
+                # Restore global tool policy after per-pocket scoped request
+                if _saved_policy is not None and hasattr(router, '_registry') and router._registry:
+                    router._registry.set_policy(_saved_policy)
 
             # 4. Send stream end marker (with any media files detected)
             # Fallback: if no media tags found in tool_result chunks,
