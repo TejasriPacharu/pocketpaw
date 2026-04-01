@@ -180,7 +180,20 @@ class AgentContextBuilder:
 
         # 4c. Inject pocket creation context (from pocket chat endpoint)
         if metadata and metadata.get("pocket_system_context"):
-            parts.append(metadata["pocket_system_context"])
+            blocks.append(("pocket_context", _Priority.HIGH, metadata["pocket_system_context"]))
+
+        # 4d. Inject current pocket info so the AI knows what pocket is open
+        if metadata and metadata.get("pocket_context"):
+            import json
+            pc = metadata["pocket_context"]
+            pocket_tag = (
+                f"\n<current-pocket>\n"
+                f"id: {pc.get('id', 'unknown')}\n"
+                f"name: {pc.get('name', 'Untitled')}\n"
+                f"widgets: {json.dumps(pc.get('widgets', []))}\n"
+                f"</current-pocket>\n"
+            )
+            blocks.append(("current_pocket", _Priority.HIGH, pocket_tag))
 
         # 5. Inject session key for session management tools
         if session_key:
