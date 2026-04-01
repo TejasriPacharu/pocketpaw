@@ -1,6 +1,6 @@
 # Tests for pocket tools — CreatePocketTool, AddWidgetTool, RemoveWidgetTool.
-# Created: 2026-03-27
-# Validates Ripple UniversalSpec v2.0 output format with intent='dashboard'.
+# Updated: 2026-04-01 — Added UISpec v1.0, multi-pane, and required-fields tests.
+# Validates all three pocket formats: UISpec, multi-pane, and flat widgets.
 
 import json
 
@@ -335,6 +335,60 @@ class TestLegacyWidgetConversion:
 
 
 # ---------------------------------------------------------------------------
+# UISpec v1.0 and multi-pane tests
+# ---------------------------------------------------------------------------
+
+
+class TestCreatePocketUISpec:
+    async def test_ui_param_produces_v1_spec(self, create_tool):
+        result = await create_tool.execute(
+            title="UISpec Pocket", description="Rich layout", category="research",
+            ui={"type": "flex", "props": {"direction": "column", "gap": "16px"},
+                "children": [{"type": "heading", "props": {"text": "Title", "level": 3}}]},
+        )
+        spec = _extract_spec(result)
+        assert spec["version"] == "1.0"
+        assert "ui" in spec
+        assert spec["ui"]["type"] == "flex"
+        assert "widgets" not in spec
+
+    async def test_ui_takes_precedence_over_widgets(self, create_tool):
+        result = await create_tool.execute(
+            title="Both", description="desc", category="research",
+            ui={"type": "flex", "props": {}, "children": []},
+            widgets=[{"type": "metric", "title": "X", "data": {"value": "1"}}],
+        )
+        spec = _extract_spec(result)
+        assert spec["version"] == "1.0"
+        assert "ui" in spec
+        assert "widgets" not in spec
+
+    async def test_empty_ui_falls_back_to_widgets(self, create_tool):
+        result = await create_tool.execute(
+            title="Fallback", description="desc", category="data",
+            ui={},
+            widgets=[{"type": "metric", "title": "X", "size": "sm", "data": {"value": "1"}}],
+        )
+        spec = _extract_spec(result)
+        assert spec["version"] == "2.0"
+        assert "widgets" in spec
+
+    async def test_multi_pane_spec(self, create_tool):
+        result = await create_tool.execute(
+            title="Multi Pane", description="desc", category="data", layout="quad",
+            panes={"tl": {"type": "flex", "props": {}, "children": []},
+                   "tr": {"type": "heading", "props": {"text": "Charts", "level": 4}}},
+        )
+        spec = _extract_spec(result)
+        assert spec["version"] == "1.0"
+        assert "panes" in spec
+        assert spec["layout"] == "quad"
+        assert len(spec["panes"]) == 2
+        assert "ui" not in spec
+        assert "widgets" not in spec
+
+
+# ---------------------------------------------------------------------------
 # _convert_legacy_widget unit tests
 # ---------------------------------------------------------------------------
 
@@ -501,10 +555,13 @@ class TestToolMetadata:
         assert add_tool.trust_level == "standard"
         assert remove_tool.trust_level == "standard"
 
-    def test_create_pocket_params_require_widgets(self, create_tool):
+    def test_create_pocket_params_required_fields(self, create_tool):
         params = create_tool.parameters
-        assert "widgets" in params["required"]
         assert "title" in params["required"]
+        assert "description" in params["required"]
+        assert "category" in params["required"]
+        assert "widgets" not in params["required"]
+        assert "ui" in params["properties"]
 
     def test_add_widget_params(self, add_tool):
         params = add_tool.parameters

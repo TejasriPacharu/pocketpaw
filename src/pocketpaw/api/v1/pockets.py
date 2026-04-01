@@ -1,13 +1,7 @@
 # Pocket chat router — dedicated endpoint for pocket creation.
-# Updated: 2026-03-30 — Detect add_widget/remove_widget from tool_start
-#   (Bash command), not just tool_result (which is truncated to 200 chars
-#   by loop.py). System prompt now includes CLI bridge instructions
-#   (python -m pocketpaw.tools.cli) so Claude SDK backend can invoke
-#   create_pocket/add_widget/remove_widget via Bash tool.
-# Updated: system prompt now teaches Ripple UniversalSpec v2.0 format
-# with intent='dashboard'. Pocket tools publish dedicated SystemEvents
-# (pocket_created / pocket_mutation) via the AgentLoop, so the SSE
-# handler simply forwards them — no regex/marker extraction needed.
+# Updated: 2026-04-01 — _prepare_pocket_spec now handles UISpec v1.0, multi-pane specs,
+#   and flat widget specs. System prompt teaches all three formats with UISpec as default.
+#   Debug logging added to trace pocket event pipeline.
 
 from __future__ import annotations
 
@@ -16,6 +10,7 @@ import json
 import logging
 import re
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -46,8 +41,53 @@ You invoke pocket tools via Bash using the CLI bridge:
   python -m pocketpaw.tools.cli add_widget '<JSON>'
   python -m pocketpaw.tools.cli remove_widget '<JSON>'
 
-Example (create):
+Two formats for create_pocket:
+
+FORMAT 1 — UISpec v1.0 (PREFERRED for rich layouts):
+Pass a 'ui' parameter with a nested component tree. Each node: {type, props, children?, style?}
+Node types: flex, grid, heading, text, badge, metric, chart, table, feed, workflow, image, card,
+tabs, callout, sources-bar, citation, source-card, discover-card, follow-up, container, button,
+input, select, checkbox, switch, avatar, progress.
+
+Example (UISpec):
+  python -m pocketpaw.tools.cli create_pocket '{"title":"Revenue Report","description":"Q4 analysis","category":"business","ui":{"type":"flex","props":{"direction":"column","gap":"16px"},"children":[{"type":"heading","props":{"text":"Revenue Report","level":3}},{"type":"grid","props":{"columns":3,"gap":"8px"},"children":[{"type":"metric","props":{"label":"Revenue","value":"$10B","trend":"+15%"}},{"type":"metric","props":{"label":"Users","value":"2.4M","trend":"+8%"}},{"type":"metric","props":{"label":"NPS","value":"72","trend":"+5"}}]},{"type":"chart","props":{"type":"area","height":200,"data":[{"label":"Q1","value":2400},{"label":"Q2","value":3100},{"label":"Q3","value":3800},{"label":"Q4","value":4500}]}}]}}'
+
+FORMAT 2 — Flat widgets (simple dashboards):
+Pass a 'widgets' array for simple grid dashboards.
+Widget types: metric, chart, table, feed, terminal, text, workflow.
+Widget sizes: "sm" (1 col), "md" (2 cols), "lg" (full width).
+
+Example (flat widgets):
   python -m pocketpaw.tools.cli create_pocket '{"title":"My Pocket","description":"Demo","category":"research","widgets":[{"type":"metric","title":"Users","size":"sm","data":{"value":"10K","label":"Total Users","trend":"+5%"}}]}'
+
+FORMAT 3 — Multi-Pane UISpec (distinct content per pane):
+Pass 'panes' dict + 'layout'. Keys are pane IDs for the layout preset.
+quad pane IDs: tl (top-left), tr (top-right), bl (bottom-left), br (bottom-right).
+workspace pane IDs: left, right. split pane IDs: top, bottom.
+Each value is a UISpec node tree.
+
+Example (SOC multi-pane):
+  python -m pocketpaw.tools.cli create_pocket '{"title":"SOC Overview","description":"Security ops","category":"mission","layout":"quad","panes":{"tl":{"type":"flex","props":{"direction":"column"},"children":[{"type":"heading","props":{"text":"Alerts","level":4}},{"type":"feed","props":{"items":[{"text":"Brute-force detected","type":"error"},{"text":"New IP flagged","type":"warning"}]}}]},"tr":{"type":"chart","props":{"type":"donut","data":[{"label":"Critical","value":3},{"label":"High","value":12},{"label":"Medium","value":45}]}},"bl":{"type":"table","props":{"columns":["IP","Country","Hits"],"data":[["1.2.3.4","CN","892"],["5.6.7.8","RU","341"]]}},"br":{"type":"flex","props":{},"children":[{"type":"metric","props":{"label":"Uptime","value":"99.97%","trend":"+0.02%"}},{"type":"metric","props":{"label":"Blocked","value":"1,247","trend":"+89"}}]}}}'
+
+POCKET LAYOUT SYSTEM:
+Layouts control how the canvas arranges content:
+- dashboard: full-screen widget grid (default for flat widgets)
+- workspace: page/article left + widgets right (good for UISpec research)
+- split: widgets top + data/detail bottom
+- quad: 2×2 grid, each pane independent (requires 'panes' parameter)
+
+How to choose:
+- UISpec (ui): rich layouts, articles, reports, research pages, anything narrative.
+- Flat widgets: when user asks for 'widgets', 'KPIs', 'dashboard grid', or a simple set of cards.
+- Multi-pane (panes): when user wants split/quad with DIFFERENT content per pane.
+- If unsure, default to UISpec. But RESPECT explicit widget requests.
+
+COMPOSING RICH POCKETS:
+Use UISpec for multi-section layouts. Nest flex/grid for structure, then leaf nodes for content.
+Common patterns:
+  - Header + metrics row + chart: flex(column) > [heading, grid(3) > [metric, metric, metric], chart]
+  - Article with sidebar: grid(2, "2fr 1fr") > [flex(column) > [...content], flex(column) > [...sidebar]]
+  - Research page: flex(column) > [heading, sources-bar, text, chart, callout, follow-up]
 
 Example (add widget to existing pocket):
   python -m pocketpaw.tools.cli add_widget '{"pocket_id":"ai-abc123","widget":{"type":"chart","title":"Growth","size":"md","data":[{"label":"Q1","value":100},{"label":"Q2","value":200}],"props":{"type":"line"}}}'
@@ -66,87 +106,26 @@ RULES:
 3. NEVER use curl, fetch, HTTP requests, or REST API calls to manage pockets.
    NEVER try to access /api/v1/pockets or any HTTP endpoints. Use the CLI bridge above.
 4. NEVER create HTML files or write files to disk.
-4. Every widget MUST have real, concrete data values — never leave data empty, null,
+5. Every widget/metric MUST have real, concrete data values — never leave data empty, null,
    or with placeholder text like "N/A", "TBD", or "...". If you cannot find a specific
    number, use your best estimate and note it with "~" prefix (e.g. "~$5B").
-5. Charts MUST have at least 3 data points with numeric values > 0.
-6. Tables MUST have at least 2 rows of real data.
-7. Feeds MUST have at least 3 items with actual text content.
-
-MULTI-AGENT RESEARCH WORKFLOW:
-Think of yourself as orchestrating a research team. Each search covers one aspect:
-  Agent 1 (Financials): revenue, valuation, funding, P&L
-  Agent 2 (Products):   product lineup, features, pricing, market position
-  Agent 3 (People):     leadership team, key hires, board members
-  Agent 4 (News):       latest announcements, press, milestones
-  Agent 5 (Market):     competitors, market share, industry trends
-Run these in parallel, then synthesize findings into a comprehensive pocket.
-
-RESEARCH STRATEGY:
-- For companies: search for financials, latest news, products, leadership, competitors
-- For topics: search for key stats, recent developments, major players, trends
-- For industries: search for market size, growth rate, top companies, emerging trends
-- Cross-reference multiple sources for accuracy
-
-The create_pocket tool accepts these parameters and returns a Ripple UniversalSpec (v2.0):
-{
-  "title": "Company Analysis",
-  "description": "Research overview",
-  "category": "research",
-  "color": "#0A84FF",
-  "logo": "https://cdn.simpleicons.org/companyname/white",
-  "columns": 3,
-  "widgets": [
-    {
-      "type": "metric",
-      "title": "Revenue",
-      "size": "sm",
-      "data": {"value": "$10B", "label": "Annual Revenue (2025)", "trend": "+15% YoY"}
-    },
-    {
-      "type": "chart",
-      "title": "Revenue Over Time",
-      "size": "md",
-      "data": [{"label": "Q1", "value": 2400}, {"label": "Q2", "value": 3100}, {"label": "Q3", "value": 3800}, {"label": "Q4", "value": 4500}],
-      "props": {"type": "area", "height": 220}
-    },
-    {
-      "type": "table",
-      "title": "Key People",
-      "size": "lg",
-      "data": {"columns": ["Name", "Role", "Background"], "data": [["Alice", "CEO", "Ex-Google VP"], ["Bob", "CTO", "Stanford CS PhD"]]}
-    },
-    {
-      "type": "feed",
-      "title": "Recent News",
-      "size": "md",
-      "data": {"items": [{"text": "Launched v2.0 with 10x performance", "time": "2h ago", "type": "success"}, {"text": "Raised $500M Series D at $8B valuation", "time": "1d ago", "type": "info"}]}
-    }
-  ]
-}
-
-Widget types:
-- metric: single KPI. data: {value, label, trend?}. value MUST be a concrete number/amount.
-- chart: bar/line/area/pie. data: [{label, value}] (min 3 items, value MUST be numeric > 0). props: {type, height?}
-- table: data grid. data: {columns: [str], data: [[cell, ...]]} (min 2 rows, cells MUST NOT be empty).
-- feed: event list. data: {items: [{text, time?, type?}]} (min 3 items, text MUST be substantive).
-- terminal: log output. data: {lines: [{text, type?, timestamp?}]}, props: {title?}
-- text: markdown. data: {content: "markdown string"}
-
-Widget sizes: "sm" (1 col), "md" (2 cols), "lg" (full width)
+6. Charts MUST have at least 3 data points with numeric values > 0.
+7. Tables MUST have at least 2 rows of real data.
+8. Feeds MUST have at least 3 items with actual text content.
 
 Logo: When creating a pocket for a known company or brand, include a "logo" field with their
 icon URL from https://cdn.simpleicons.org/{brand-slug}/{color-hex-without-hash}
 (e.g. "https://cdn.simpleicons.org/stripe/white", "https://cdn.simpleicons.org/slack/white").
 For generic/non-brand pockets, omit the logo field.
 
-Create 6-8 widgets with REAL data from your research. Prioritize metrics and charts first.
+Colors: #30D158 (green), #FF453A (red), #FF9F0A (orange), #0A84FF (blue), #BF5AF2 (purple), #5E5CE6 (indigo).
 
 MODIFYING EXISTING POCKETS:
 When a <current-pocket> tag is present in the user message, you are editing that pocket.
 - To ADD a widget: python -m pocketpaw.tools.cli add_widget '{"pocket_id":"<id>","widget":{...}}'
 - To REMOVE a widget: python -m pocketpaw.tools.cli remove_widget '{"pocket_id":"<id>","widget_id":"<wid>"}'
-- To RECREATE the entire pocket: python -m pocketpaw.tools.cli create_pocket '{"title":...,"widgets":[...]}'
+- To RECREATE the entire pocket: python -m pocketpaw.tools.cli create_pocket '{"title":...}'
+  (use 'ui' for UISpec, 'widgets' for flat dashboard, 'panes'+'layout' for multi-pane)
 - The pocket id and widget ids are provided in the <current-pocket> tag.
 - Do NOT use HTTP/curl/fetch — only use the CLI bridge commands above.
 </pocket-creation-context>
@@ -273,10 +252,12 @@ def _prepare_widget(w: dict, pocket_id: str, index: int, color: str = "#0A84FF")
 
 
 def _prepare_pocket_spec(spec: dict) -> dict | None:
-    """Validate AI spec and transform into Ripple-ready UniversalSpec v2.0.
+    """Validate AI spec and transform into a render-ready format.
 
-    This is the SINGLE place that converts raw LLM output into the exact format
-    that Ripple's DashboardRenderer expects. The client renders it as-is.
+    Handles three formats:
+    1. Multi-pane UISpec (panes dict)
+    2. UISpec v1.0 (ui tree)
+    3. Flat widgets (UniversalSpec v2.0 dashboard)
 
     Returns a complete, render-ready spec or None if the spec is unusable.
     """
@@ -287,6 +268,60 @@ def _prepare_pocket_spec(spec: dict) -> dict | None:
     if not name:
         return None
 
+    # ── Multi-pane path: per-pane UISpec trees ──
+    panes = spec.get("panes")
+    if isinstance(panes, dict) and panes:
+        pocket_id = spec.get("id") or spec.get("lifecycle", {}).get("id") or f"pocket-{uuid.uuid4().hex[:8]}"
+        meta = spec.get("metadata") or {}
+        color = spec.get("color") or meta.get("color", "#0A84FF")
+        result: dict[str, Any] = {
+            "version": "1.0",
+            "lifecycle": {"type": "persistent", "id": pocket_id},
+            "title": name,
+            "name": name,
+            "description": spec.get("description", ""),
+            "category": spec.get("category") or meta.get("category", "custom"),
+            "color": color,
+            "logo": spec.get("logo") or meta.get("logo"),
+            "layout": spec.get("layout", "quad"),
+            "panes": panes,
+            "metadata": {
+                "category": spec.get("category") or meta.get("category", "custom"),
+                "color": color,
+                "logo": spec.get("logo") or meta.get("logo"),
+            },
+        }
+        logger.info("Pocket multi-pane prepared: %s (%d panes)", name, len(panes))
+        return result
+
+    # ── UISpec v1.0 path: nested component tree ──
+    ui_tree = spec.get("ui")
+    if isinstance(ui_tree, dict) and ui_tree.get("type"):
+        pocket_id = spec.get("id") or spec.get("lifecycle", {}).get("id") or f"pocket-{uuid.uuid4().hex[:8]}"
+        meta = spec.get("metadata") or {}
+        color = spec.get("color") or meta.get("color", "#0A84FF")
+        result: dict[str, Any] = {
+            "version": "1.0",
+            "lifecycle": {"type": "persistent", "id": pocket_id},
+            "title": name,
+            "name": name,
+            "description": spec.get("description", ""),
+            "category": spec.get("category") or meta.get("category", "custom"),
+            "color": color,
+            "logo": spec.get("logo") or meta.get("logo"),
+            "ui": ui_tree,
+            "metadata": {
+                "category": spec.get("category") or meta.get("category", "custom"),
+                "color": color,
+                "logo": spec.get("logo") or meta.get("logo"),
+            },
+        }
+        if spec.get("layout"):
+            result["layout"] = spec["layout"]
+        logger.info("Pocket UISpec prepared: %s", name)
+        return result
+
+    # ── Flat widgets path: UniversalSpec v2.0 dashboard ──
     raw_widgets = spec.get("widgets")
     if not isinstance(raw_widgets, list) or len(raw_widgets) == 0:
         return None
@@ -322,14 +357,12 @@ def _prepare_pocket_spec(spec: dict) -> dict | None:
         # ── Transform data per type into exactly what Ripple components expect ──
 
         if wtype == "metric":
-            # Metric expects data spread into props: {value, label, trend}
             if not isinstance(data, dict) or not data.get("value"):
                 logger.warning("Dropping metric %r: missing value", title)
                 continue
             rw["data"] = data
 
         elif wtype == "chart":
-            # Chart expects data = [{label, value}] with numeric values
             if not isinstance(data, list) or len(data) == 0:
                 logger.warning("Dropping chart %r: empty data", title)
                 continue
@@ -346,9 +379,6 @@ def _prepare_pocket_spec(spec: dict) -> dict | None:
             rw["data"] = cleaned
 
         elif wtype == "table":
-            # Table component expects:
-            #   props.columns = [{accessorKey: "Name", header: "Name"}, ...]
-            #   props.data    = [{Name: "Alice", Role: "CEO"}, ...]
             if not isinstance(data, dict):
                 logger.warning("Dropping table %r: data not object", title)
                 continue
@@ -365,7 +395,6 @@ def _prepare_pocket_spec(spec: dict) -> dict | None:
             ]
 
         elif wtype == "feed":
-            # Feed expects data = [{text, time?, type?}] (flat array, not wrapped)
             if isinstance(data, dict):
                 items = data.get("items", [])
             elif isinstance(data, list):
@@ -380,14 +409,12 @@ def _prepare_pocket_spec(spec: dict) -> dict | None:
             rw["data"] = items
 
         elif wtype == "text":
-            # Text expects data = "string"
             if isinstance(data, dict) and "content" in data:
                 rw["data"] = str(data["content"])
             else:
                 rw["data"] = str(data) if data else ""
 
         elif wtype == "terminal":
-            # Terminal expects data = [{text, type?, timestamp?}]
             if isinstance(data, dict) and "lines" in data:
                 rw["data"] = data["lines"]
             else:
@@ -403,7 +430,7 @@ def _prepare_pocket_spec(spec: dict) -> dict | None:
         return None
 
     # Build the complete Ripple UniversalSpec v2.0
-    return {
+    result_spec: dict[str, Any] = {
         "version": "2.0",
         "intent": "dashboard",
         "lifecycle": {"type": "persistent", "id": pocket_id},
@@ -426,6 +453,9 @@ def _prepare_pocket_spec(spec: dict) -> dict | None:
             "logo": spec.get("logo") or meta.get("logo"),
         },
     }
+    if spec.get("layout"):
+        result_spec["layout"] = spec["layout"]
+    return result_spec
 
 
 @router.post("/pockets/chat")
@@ -473,15 +503,24 @@ async def pocket_chat_stream(body: ChatRequest):
                 # AgentLoop (no regex/marker extraction needed).
                 if etype == "pocket_created" and not pocket_emitted:
                     spec = edata.get("spec", {})
+                    logger.debug(
+                        "pocket_created event received: title=%r, has_ui=%s, has_widgets=%s, has_panes=%s",
+                        spec.get("title"),
+                        "ui" in spec,
+                        "widgets" in spec,
+                        "panes" in spec,
+                    )
                     spec = _prepare_pocket_spec(spec)
                     if spec:
                         pocket_emitted = True
-                        logger.info(
-                            "Pocket created: %s (%d widgets)",
-                            spec.get("title", spec.get("name", "?")),
-                            len(spec.get("widgets", [])),
-                        )
+                        fmt = "UISpec" if "ui" in spec else f"{len(spec.get('panes', {}))} panes" if "panes" in spec else f"{len(spec.get('widgets', []))} widgets"
+                        logger.info("Pocket created: %s (%s)", spec.get("title", "?"), fmt)
                         yield (f"event: pocket_created\ndata: {json.dumps(spec)}\n\n")
+                    else:
+                        logger.warning(
+                            "pocket_created event dropped — _prepare_pocket_spec returned None for title=%r",
+                            edata.get("spec", {}).get("title"),
+                        )
                     continue
 
                 if etype == "pocket_mutation":

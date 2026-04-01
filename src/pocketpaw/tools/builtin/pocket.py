@@ -1,7 +1,10 @@
 # Pocket tools — CreatePocketTool, AddWidgetTool, RemoveWidgetTool.
-# Updated: output Ripple UniversalSpec (v2.0) with intent='dashboard'
-# instead of legacy custom pocket JSON format.
-# AddWidgetTool and RemoveWidgetTool added for widget-level mutations.
+# Updated: Added multi-pane pocket support. CreatePocketTool now accepts an
+# optional 'panes' parameter for per-pane UISpec trees in multi-pane layouts
+# (quad, workspace, split). When 'panes' + 'layout' are provided, each pane
+# gets its own UISpec node tree and 'ui'/'widgets' are ignored.
+# Also supports 'ui' parameter for single-pane UISpec v1.0 nested component
+# trees and flat 'widgets' array for legacy UniversalSpec v2.0 dashboards.
 
 import json
 import logging
@@ -159,39 +162,56 @@ class CreatePocketTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Create a pocket workspace as a Ripple UniversalSpec (v2.0). "
-            "Call this after researching a topic. "
-            "Provide a title, description, category, and a list of widgets.\n\n"
-            "Widget types:\n"
-            "- metric: single KPI. data: {value, label, trend?}\n"
-            "- chart: bar/line/area/pie. data: [{label, value}], "
-            "props: {type: 'bar'|'line'|'area'|'pie', height?: 200}\n"
-            "- table: data table. data: {columns: [str], data: [[...]]}\n"
-            "- feed: activity feed. data: {items: [{text, time?, type?}]}\n"
-            "- terminal: log output. data: {lines: [{text, type?, timestamp?}]}, "
-            "props: {title?, interactive?}\n"
-            "- text: markdown block. data: {content: 'markdown string'}\n"
-            "- workflow: node-based pipeline/DAG. Size MUST be 'lg'. "
-            "data MUST be an object with 'nodes' array and 'edges' array.\n"
-            "  Example workflow widget:\n"
-            '  {"type":"workflow","title":"CI Pipeline","size":"lg","data":{'
-            '"nodes":['
-            '{"id":"t1","type":"trigger","label":"Push Code"},'
+            "Create a pocket workspace. Two formats available:\n\n"
+            "FORMAT 1 — UISpec v1.0 (PREFERRED for rich layouts):\n"
+            "Pass a 'ui' parameter with a nested component tree. Supports "
+            "flex, grid, heading, text, badge, metric, chart, table, feed, "
+            "workflow, image, card, tabs, callout, sources-bar, citation, "
+            "source-card, discover-card, follow-up, and more.\n"
+            "Each node: {type, props, children?, style?}\n\n"
+            "Example UISpec:\n"
+            '{"ui":{"type":"flex","props":{"direction":"column","gap":"16px"},'
+            '"children":['
+            '{"type":"heading","props":{"text":"Revenue Report","level":3}},'
+            '{"type":"grid","props":{"columns":3,"gap":"8px"},"children":['
+            '{"type":"metric","props":{"label":"Revenue","value":"$10B","trend":"+15%"}},'
+            '{"type":"metric","props":{"label":"Users","value":"2.4M","trend":"+8%"}},'
+            '{"type":"metric","props":{"label":"NPS","value":"72","trend":"+5"}}'
+            ']},'
+            '{"type":"chart","props":{"type":"area","height":200,"data":['
+            '{"label":"Q1","value":2400},{"label":"Q2","value":3100},'
+            '{"label":"Q3","value":3800},{"label":"Q4","value":4500}]}},'
+            '{"type":"workflow","props":{"title":"Deploy Pipeline","nodes":['
+            '{"id":"t1","type":"trigger","label":"Push"},'
             '{"id":"a1","type":"action","label":"Build"},'
-            '{"id":"a2","type":"action","label":"Test"},'
-            '{"id":"c1","type":"condition","label":"Pass?"},'
-            '{"id":"o1","type":"output","label":"Deploy"},'
-            '{"id":"o2","type":"output","label":"Fix"}'
-            '],"edges":['
-            '{"from":"t1","to":"a1"},'
-            '{"from":"a1","to":"a2"},'
-            '{"from":"a2","to":"c1"},'
-            '{"from":"c1","to":"o1","label":"yes"},'
-            '{"from":"c1","to":"o2","label":"no"}'
-            ']}}\n'
-            "  Node types: trigger (blue), action (green), condition (orange), "
+            '{"id":"o1","type":"output","label":"Deploy"}'
+            '],"edges":[{"from":"t1","to":"a1"},{"from":"a1","to":"o1"}]}}'
+            ']}}\n\n'
+            "UISpec node types:\n"
+            "- layout: flex, grid, card, tabs, container\n"
+            "- display: heading, text, image, badge, metric, avatar, progress, feed\n"
+            "- data: chart (sparkline/bar/line/area/pie/donut/candlestick), table\n"
+            "- input: button, input, select, checkbox, switch\n"
+            "- workflow: node-based DAG with nodes + edges in props\n"
+            "- research: source-card, citation, sources-bar, discover-card, "
+            "news-card, callout, follow-up\n\n"
+            "FORMAT 2 — Flat widgets (simple dashboards):\n"
+            "Pass a 'widgets' array for simple grid dashboards.\n"
+            "Widget types: metric, chart, table, feed, terminal, text, workflow.\n"
+            "Widget sizes: 'sm' (1 col), 'md' (2 cols), 'lg' (full width).\n\n"
+            "FORMAT 3 — Multi-Pane UISpec (distinct content per pane):\n"
+            "Pass 'panes' dict + 'layout'. Keys are pane IDs for the layout preset.\n"
+            "quad pane IDs: tl (top-left), tr (top-right), bl (bottom-left), br (bottom-right).\n"
+            "workspace pane IDs: left, right. split pane IDs: top, bottom.\n"
+            "Each value is a UISpec node tree.\n\n"
+            "WHEN TO USE WHICH:\n"
+            "- UISpec (ui): rich layouts, articles, reports, research pages, anything narrative.\n"
+            "- Flat widgets: when user asks for 'widgets', 'KPIs', 'dashboard grid', or "
+            "a simple set of cards. Use FORMAT 2 with the widgets array.\n"
+            "- Multi-pane (panes): when user wants split/quad with DIFFERENT content per pane.\n"
+            "- If unsure, default to UISpec. But RESPECT explicit widget requests.\n\n"
+            "Workflow nodes: trigger (blue), action (green), condition (orange), "
             "approval (amber), connector (purple), output (teal).\n\n"
-            "Widget sizes: 'sm' (1 col), 'md' (2 cols), 'lg' (3 cols / full width).\n\n"
             "Colors: #30D158 (green), #FF453A (red), #FF9F0A (orange), "
             "#0A84FF (blue), #BF5AF2 (purple), #5E5CE6 (indigo)."
         )
@@ -225,6 +245,35 @@ class CreatePocketTool(BaseTool):
                         "custom",
                         "hospitality",
                     ],
+                },
+                "layout": {
+                    "type": "string",
+                    "description": (
+                        "Canvas layout preset: dashboard (full screen), "
+                        "workspace (page left + widgets right), "
+                        "split (widgets top + data bottom), "
+                        "quad (2×2 grid). Auto-detected if omitted."
+                    ),
+                    "enum": ["dashboard", "workspace", "split", "quad"],
+                },
+                "panes": {
+                    "type": "object",
+                    "description": (
+                        "Per-pane UISpec trees for multi-pane layouts. "
+                        "Keys are pane IDs: quad → tl, tr, bl, br; "
+                        "workspace → left, right; split → top, bottom. "
+                        "Each value is a UISpec node ({type, props, children}). "
+                        "Requires 'layout' field. When provided, 'ui' and 'widgets' are ignored."
+                    ),
+                },
+                "ui": {
+                    "type": "object",
+                    "description": (
+                        "UISpec v1.0 nested component tree (PREFERRED). "
+                        "Root node with type, props, children. "
+                        "Example: {type:'flex', props:{direction:'column', gap:'16px'}, "
+                        "children:[{type:'heading', props:{text:'Title', level:3}}, ...]}"
+                    ),
                 },
                 "color": {
                     "type": "string",
@@ -268,7 +317,7 @@ class CreatePocketTool(BaseTool):
                     },
                 },
             },
-            "required": ["title", "description", "category", "widgets"],
+            "required": ["title", "description", "category"],
         }
 
     async def execute(
@@ -276,19 +325,65 @@ class CreatePocketTool(BaseTool):
         title: str = "",
         description: str = "",
         category: str = "research",
+        ui: dict[str, Any] | None = None,
+        panes: dict[str, Any] | None = None,
         widgets: list[dict[str, Any]] | None = None,
+        layout: str = "",
         color: str = "#0A84FF",
         columns: int = 3,
-        # Legacy parameter names (backward compat)
         name: str = "",
         **kwargs: Any,
     ) -> str:
-        """Build and return a Ripple UniversalSpec as JSON."""
+        """Build and return a pocket spec as JSON."""
         import uuid
 
         pocket_id = f"ai-{uuid.uuid4().hex[:8]}"
-        # Support legacy 'name' param
         pocket_title = title or name or "Untitled Pocket"
+
+        metadata = {
+            "category": category,
+            "color": color,
+            "created_at": datetime.now(UTC).isoformat(),
+            "pocket_version": "2.0",
+        }
+
+        # ── Multi-pane path: per-pane UISpec trees ──
+        if panes and isinstance(panes, dict) and layout:
+            valid_panes = {
+                k: v for k, v in panes.items()
+                if isinstance(v, dict) and v.get("type")
+            }
+            if valid_panes:
+                spec: dict[str, Any] = {
+                    "version": "1.0",
+                    "lifecycle": {"type": "persistent", "id": pocket_id},
+                    "title": pocket_title,
+                    "description": description,
+                    "layout": layout,
+                    "panes": valid_panes,
+                    "metadata": metadata,
+                }
+                event_payload = json.dumps({"pocket_event": "created", "spec": spec})
+                msg = f"Created pocket **{pocket_title}** ({len(valid_panes)} panes)."
+                return f"{event_payload}\n\n{msg}"
+
+        # ── UISpec v1.0 path: nested component tree ──
+        if ui and isinstance(ui, dict) and ui.get("type"):
+            spec: dict[str, Any] = {
+                "version": "1.0",
+                "lifecycle": {"type": "persistent", "id": pocket_id},
+                "title": pocket_title,
+                "description": description,
+                "ui": ui,
+                "metadata": metadata,
+            }
+            if layout:
+                spec["layout"] = layout
+            event_payload = json.dumps({"pocket_event": "created", "spec": spec})
+            msg = f"Created pocket **{pocket_title}** (UISpec)."
+            return f"{event_payload}\n\n{msg}"
+
+        # ── Flat widgets path: UniversalSpec v2.0 dashboard ──
         widgets = widgets or []
 
         # Build widget list with IDs
@@ -333,13 +428,10 @@ class CreatePocketTool(BaseTool):
             "display": {"columns": columns},
             "widgets": built_widgets,
             "dashboard_layout": {"type": "grid", "columns": columns, "gap": 10},
-            "metadata": {
-                "category": category,
-                "color": color,
-                "created_at": datetime.now(UTC).isoformat(),
-                "pocket_version": "2.0",
-            },
+            "metadata": metadata,
         }
+        if layout:
+            spec["layout"] = layout
 
         # Return structured JSON (first block) + human message (second block).
         # The AgentLoop detects the pocket_event key and publishes a dedicated

@@ -114,11 +114,20 @@ async def _publish_pocket_event(
         return
 
     evt_type = data["pocket_event"]
+    spec = data.get("spec", {})
+    logger.info(
+        "Pocket event detected: type=%s, title=%r, has_ui=%s, has_widgets=%s, has_panes=%s",
+        evt_type,
+        spec.get("title"),
+        "ui" in spec,
+        "widgets" in spec,
+        "panes" in spec,
+    )
     if evt_type == "created":
         await bus.publish_system(
             SystemEvent(
                 event_type="pocket_created",
-                data={"spec": data.get("spec", {}), "session_key": session_key},
+                data={"spec": spec, "session_key": session_key},
             )
         )
     elif evt_type == "mutation":
