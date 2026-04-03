@@ -293,4 +293,4 @@ async def stop_typing(sid, data):
 # ---------------------------------------------------------------------------
 
 # Create the ASGI app that wraps the Socket.IO server
-socketio_app = socketio.ASGIApp(sio, socketio_path="/ws/chat")
+socketio_app = socketio.ASGIApp(sio, socketio_path="socket.io")

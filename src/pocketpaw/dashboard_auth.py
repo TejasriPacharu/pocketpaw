@@ -210,6 +210,7 @@ async def _auth_dispatch(request: Request) -> Response | None:
         "/api/v1/workspace",
         "/api/v1/invites",
         "/api/v1/agents",
+        "/socket.io",
     ]
 
     for path in exempt_paths:

@@ -203,8 +203,8 @@ except Exception as _a2a_exc:
 # Mount Socket.IO for enterprise real-time group chat
 try:
     from ee.cloud.socketio_server import socketio_app
-    app.mount("/ws/chat", socketio_app)
-    logger.info("Socket.IO mounted at /ws/chat")
+    app.mount("/", socketio_app)
+    logger.info("Socket.IO mounted (path: /socket.io/)")
 except ImportError:
     logger.debug("Enterprise Socket.IO not available — skipping")
 except Exception as _sio_exc:

@@ -71,7 +71,7 @@ def create_api_app():
     # --- Mount Socket.IO for enterprise real-time group chat ----------------
     try:
         from ee.cloud.socketio_server import socketio_app
-        app.mount("/ws/chat", socketio_app)
+        app.mount("/", socketio_app)
     except ImportError:
         pass
     except Exception:
