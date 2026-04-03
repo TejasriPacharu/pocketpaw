@@ -238,12 +238,15 @@ async def send_message(sid, data):
     )
     await msg.insert()
 
-    # Broadcast to room
+    # Broadcast to room (skip sender — they add it locally)
     msg_data = msg.model_dump(mode="json")
     msg_data["_id"] = str(msg.id)
     msg_data["sender_name"] = session["name"]
 
-    await sio.emit("new_message", msg_data, room=f"group:{group_id}")
+    await sio.emit("new_message", msg_data, room=f"group:{group_id}", skip_sid=sid)
+
+    # Confirm to sender with the persisted message (so they get the real _id)
+    await sio.emit("message_sent", msg_data, to=sid)
 
 
 # ---------------------------------------------------------------------------
