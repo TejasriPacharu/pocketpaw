@@ -20,6 +20,7 @@ from pocketpaw.config import Settings
 
 logger = logging.getLogger(__name__)
 
+
 def _get_session_db_path() -> Path:
     """Resolve session DB path lazily so ``Path.home()`` is evaluated at call time."""
     return Path.home() / ".pocketpaw" / "openai_agents_sessions.db"
