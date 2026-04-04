@@ -19,6 +19,30 @@ router = APIRouter(
 )
 
 # ---------------------------------------------------------------------------
+# Backends discovery
+# ---------------------------------------------------------------------------
+
+
+@router.get("/backends")
+async def list_available_backends():
+    """List available agent backends with their display names."""
+    from pocketpaw.agents.registry import list_backends, get_backend_info
+
+    results = []
+    for name in list_backends():
+        try:
+            info = get_backend_info(name)
+            results.append({
+                "name": name,
+                "displayName": info.display_name if info else name,
+                "available": info is not None,
+            })
+        except Exception:
+            results.append({"name": name, "displayName": name, "available": False})
+    return results
+
+
+# ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
 

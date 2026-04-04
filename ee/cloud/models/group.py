@@ -15,7 +15,7 @@ class GroupAgent(BaseModel):
 
     agent: str  # Agent ID
     role: str = "assistant"  # assistant | listener | moderator
-    respond_mode: str = "mention_only"  # mention_only | auto | silent
+    respond_mode: str = "mention_only"  # mention_only | auto | silent | smart
 
 
 class Group(TimestampedDocument):
