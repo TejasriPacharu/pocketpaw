@@ -10,11 +10,8 @@ from beanie import PydanticObjectId
 
 from ee.cloud.chat.schemas import (
     AddGroupAgentRequest,
-    CursorPage,
     CreateGroupRequest,
     EditMessageRequest,
-    GroupResponse,
-    MessageResponse,
     SendMessageRequest,
     UpdateGroupAgentRequest,
     UpdateGroupRequest,
@@ -41,45 +38,45 @@ def _generate_slug(name: str) -> str:
     return slug.strip("-")
 
 
-def _group_response(group: Group) -> GroupResponse:
-    """Convert a Group document to a GroupResponse."""
-    return GroupResponse(
-        id=str(group.id),
-        workspace=group.workspace,
-        name=group.name,
-        slug=group.slug,
-        description=group.description,
-        type=group.type,
-        icon=group.icon,
-        color=group.color,
-        owner=group.owner,
-        members=group.members,
-        agents=[a.model_dump() for a in group.agents],
-        pinned_messages=group.pinned_messages,
-        archived=group.archived,
-        last_message_at=group.last_message_at,
-        message_count=group.message_count,
-        created_at=group.createdAt,
-    )
+def _group_response(group: Group) -> dict:
+    """Convert a Group document to a frontend-compatible dict."""
+    return {
+        "_id": str(group.id),
+        "workspace": group.workspace,
+        "name": group.name,
+        "slug": group.slug,
+        "description": group.description,
+        "type": group.type,
+        "icon": group.icon,
+        "color": group.color,
+        "owner": group.owner,
+        "members": group.members,
+        "agents": [a.model_dump() for a in group.agents],
+        "pinnedMessages": group.pinned_messages,
+        "archived": group.archived,
+        "lastMessageAt": group.last_message_at.isoformat() if group.last_message_at else None,
+        "messageCount": group.message_count,
+        "createdAt": group.createdAt.isoformat() if group.createdAt else None,
+    }
 
 
-def _message_response(msg: Message) -> MessageResponse:
-    """Convert a Message document to a MessageResponse."""
-    return MessageResponse(
-        id=str(msg.id),
-        group=msg.group,
-        sender=msg.sender,
-        sender_type=msg.sender_type,
-        content=msg.content,
-        mentions=[m.model_dump() for m in msg.mentions],
-        reply_to=msg.reply_to,
-        attachments=[a.model_dump() for a in msg.attachments],
-        reactions=[r.model_dump() for r in msg.reactions],
-        edited=msg.edited,
-        edited_at=msg.edited_at,
-        deleted=msg.deleted,
-        created_at=msg.createdAt,
-    )
+def _message_response(msg: Message) -> dict:
+    """Convert a Message document to a frontend-compatible dict."""
+    return {
+        "_id": str(msg.id),
+        "group": msg.group,
+        "sender": msg.sender,
+        "senderType": msg.sender_type,
+        "content": msg.content,
+        "mentions": [m.model_dump() for m in msg.mentions],
+        "replyTo": msg.reply_to,
+        "attachments": [a.model_dump() for a in msg.attachments],
+        "reactions": [r.model_dump() for r in msg.reactions],
+        "edited": msg.edited,
+        "editedAt": msg.edited_at.isoformat() if msg.edited_at else None,
+        "deleted": msg.deleted,
+        "createdAt": msg.createdAt.isoformat() if msg.createdAt else None,
+    }
 
 
 def _require_group_member(group: Group, user_id: str) -> None:
@@ -124,7 +121,7 @@ class GroupService:
     @staticmethod
     async def create_group(
         workspace_id: str, user_id: str, body: CreateGroupRequest
-    ) -> GroupResponse:
+    ) -> dict:
         """Create a group and add the creator as a member.
 
         For DMs: validates exactly 2 member_ids, auto-names as "DM".
@@ -158,7 +155,7 @@ class GroupService:
         return _group_response(group)
 
     @staticmethod
-    async def list_groups(workspace_id: str, user_id: str) -> list[GroupResponse]:
+    async def list_groups(workspace_id: str, user_id: str) -> list[dict]:
         """List groups visible to the user.
 
         Returns public groups in the workspace plus private/dm groups
@@ -177,7 +174,7 @@ class GroupService:
         return [_group_response(g) for g in groups]
 
     @staticmethod
-    async def get_group(group_id: str, user_id: str) -> GroupResponse:
+    async def get_group(group_id: str, user_id: str) -> dict:
         """Get a single group. Private/DM groups require membership."""
         group = await _get_group_or_404(group_id)
 
@@ -189,7 +186,7 @@ class GroupService:
     @staticmethod
     async def update_group(
         group_id: str, user_id: str, body: UpdateGroupRequest
-    ) -> GroupResponse:
+    ) -> dict:
         """Update group fields. Owner only. Cannot update DMs."""
         group = await _get_group_or_404(group_id)
 
@@ -337,7 +334,7 @@ class GroupService:
     @staticmethod
     async def get_or_create_dm(
         workspace_id: str, user_id: str, target_user_id: str
-    ) -> GroupResponse:
+    ) -> dict:
         """Find an existing DM between two users, or create one.
 
         DM groups have type="dm", sorted members, and name="DM".
@@ -377,7 +374,7 @@ class MessageService:
     @staticmethod
     async def send_message(
         group_id: str, user_id: str, body: SendMessageRequest
-    ) -> MessageResponse:
+    ) -> dict:
         """Send a message to a group.
 
         Verifies membership, checks group is not archived, creates the
@@ -426,7 +423,7 @@ class MessageService:
     @staticmethod
     async def edit_message(
         message_id: str, user_id: str, body: EditMessageRequest
-    ) -> MessageResponse:
+    ) -> dict:
         """Edit a message. Author only."""
         msg = await _get_message_or_404(message_id)
 
@@ -460,7 +457,7 @@ class MessageService:
     @staticmethod
     async def toggle_reaction(
         message_id: str, user_id: str, emoji: str
-    ) -> MessageResponse:
+    ) -> dict:
         """Toggle a reaction on a message.
 
         If the user already reacted with the given emoji, remove their
@@ -497,7 +494,7 @@ class MessageService:
         user_id: str,
         cursor: str | None = None,
         limit: int = 50,
-    ) -> CursorPage:
+    ) -> dict:
         """Cursor-based paginated messages, newest first.
 
         Cursor format: ``"{iso_timestamp}|{object_id}"``.
@@ -539,10 +536,10 @@ class MessageService:
             last = messages[-1]
             next_cursor = f"{last.createdAt.isoformat()}|{last.id}"
 
-        return CursorPage(items=items, next_cursor=next_cursor, has_more=has_more)
+        return {"items": items, "nextCursor": next_cursor, "hasMore": has_more}
 
     @staticmethod
-    async def get_thread(message_id: str, user_id: str) -> list[MessageResponse]:
+    async def get_thread(message_id: str, user_id: str) -> list[dict]:
         """Get all replies to a message, sorted ascending by creation time."""
         msg = await _get_message_or_404(message_id)
 
@@ -588,7 +585,7 @@ class MessageService:
     @staticmethod
     async def search_messages(
         group_id: str, user_id: str, query: str
-    ) -> list[MessageResponse]:
+    ) -> list[dict]:
         """Search messages by content using regex. Limited to 50 results."""
         group = await _get_group_or_404(group_id)
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from beanie import PydanticObjectId
 
 from ee.cloud.agents.schemas import (
-    AgentResponse,
     CreateAgentRequest,
     DiscoverRequest,
     UpdateAgentRequest,
@@ -14,20 +13,20 @@ from ee.cloud.models.agent import Agent, AgentConfig
 from ee.cloud.shared.errors import ConflictError, Forbidden, NotFound
 
 
-def _agent_response(agent: Agent) -> AgentResponse:
-    """Build an AgentResponse from an Agent document."""
-    return AgentResponse(
-        id=str(agent.id),
-        workspace=agent.workspace,
-        name=agent.name,
-        slug=agent.slug,
-        avatar=agent.avatar,
-        visibility=agent.visibility,
-        config=agent.config.model_dump(),
-        owner=agent.owner,
-        created_at=agent.createdAt,
-        updated_at=agent.updatedAt,
-    )
+def _agent_response(agent: Agent) -> dict:
+    """Build a frontend-compatible dict from an Agent document."""
+    return {
+        "_id": str(agent.id),
+        "workspace": agent.workspace,
+        "name": agent.name,
+        "uname": agent.slug,
+        "avatar": agent.avatar,
+        "visibility": agent.visibility,
+        "config": agent.config.model_dump(),
+        "owner": agent.owner,
+        "createdOn": agent.createdAt.isoformat() if agent.createdAt else None,
+        "lastUpdatedOn": agent.updatedAt.isoformat() if agent.updatedAt else None,
+    }
 
 
 class AgentService:
@@ -36,7 +35,7 @@ class AgentService:
     @staticmethod
     async def create(
         workspace_id: str, user_id: str, body: CreateAgentRequest
-    ) -> AgentResponse:
+    ) -> dict:
         """Create an agent with slug uniqueness within the workspace."""
         existing = await Agent.find_one(
             Agent.workspace == workspace_id,
@@ -65,7 +64,7 @@ class AgentService:
     @staticmethod
     async def list_agents(
         workspace_id: str, query: str | None = None
-    ) -> list[AgentResponse]:
+    ) -> list[dict]:
         """List agents in a workspace with optional name search."""
         filters: dict = {"workspace": workspace_id}
         if query:
@@ -75,7 +74,7 @@ class AgentService:
         return [_agent_response(a) for a in agents]
 
     @staticmethod
-    async def get(agent_id: str) -> AgentResponse:
+    async def get(agent_id: str) -> dict:
         """Get a single agent by ID. Raises NotFound if missing."""
         agent = await Agent.get(PydanticObjectId(agent_id))
         if not agent:
@@ -83,7 +82,7 @@ class AgentService:
         return _agent_response(agent)
 
     @staticmethod
-    async def get_by_slug(workspace_id: str, slug: str) -> AgentResponse:
+    async def get_by_slug(workspace_id: str, slug: str) -> dict:
         """Find an agent by slug within a workspace."""
         agent = await Agent.find_one(
             Agent.workspace == workspace_id,
@@ -96,7 +95,7 @@ class AgentService:
     @staticmethod
     async def update(
         agent_id: str, user_id: str, body: UpdateAgentRequest
-    ) -> AgentResponse:
+    ) -> dict:
         """Update agent fields. Owner only."""
         agent = await Agent.get(PydanticObjectId(agent_id))
         if not agent:
@@ -130,7 +129,7 @@ class AgentService:
     @staticmethod
     async def discover(
         workspace_id: str, user_id: str, body: DiscoverRequest
-    ) -> list[AgentResponse]:
+    ) -> list[dict]:
         """Paginated agent discovery with visibility filtering.
 
         Visibility rules:

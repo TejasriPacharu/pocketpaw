@@ -16,40 +16,37 @@ from ee.cloud.shared.permissions import check_workspace_role
 from ee.cloud.workspace.schemas import (
     CreateInviteRequest,
     CreateWorkspaceRequest,
-    InviteResponse,
-    MemberResponse,
     UpdateWorkspaceRequest,
-    WorkspaceResponse,
 )
 
 
-def _workspace_response(ws: Workspace, member_count: int = 0) -> WorkspaceResponse:
-    """Build a WorkspaceResponse from a Workspace document."""
-    return WorkspaceResponse(
-        id=str(ws.id),
-        name=ws.name,
-        slug=ws.slug,
-        owner=ws.owner,
-        plan=ws.plan,
-        seats=ws.seats,
-        created_at=ws.createdAt,
-        member_count=member_count,
-    )
+def _workspace_response(ws: Workspace, member_count: int = 0) -> dict:
+    """Build a frontend-compatible dict from a Workspace document."""
+    return {
+        "_id": str(ws.id),
+        "name": ws.name,
+        "slug": ws.slug,
+        "owner": ws.owner,
+        "plan": ws.plan,
+        "seats": ws.seats,
+        "createdAt": ws.createdAt.isoformat() if ws.createdAt else None,
+        "memberCount": member_count,
+    }
 
 
-def _invite_response(invite: Invite) -> InviteResponse:
-    """Build an InviteResponse from an Invite document."""
-    return InviteResponse(
-        id=str(invite.id),
-        email=invite.email,
-        role=invite.role,
-        invited_by=invite.invited_by,
-        token=invite.token,
-        accepted=invite.accepted,
-        revoked=invite.revoked,
-        expired=invite.expired,
-        expires_at=invite.expires_at,
-    )
+def _invite_response(invite: Invite) -> dict:
+    """Build a frontend-compatible dict from an Invite document."""
+    return {
+        "_id": str(invite.id),
+        "email": invite.email,
+        "role": invite.role,
+        "invitedBy": invite.invited_by,
+        "token": invite.token,
+        "accepted": invite.accepted,
+        "revoked": invite.revoked,
+        "expired": invite.expired,
+        "expiresAt": invite.expires_at.isoformat() if invite.expires_at else None,
+    }
 
 
 def _get_membership(user: User, workspace_id: str) -> WorkspaceMembership:
@@ -73,7 +70,7 @@ class WorkspaceService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    async def create(user: User, body: CreateWorkspaceRequest) -> WorkspaceResponse:
+    async def create(user: User, body: CreateWorkspaceRequest) -> dict:
         """Create a workspace and add the creator as owner."""
         existing = await Workspace.find_one(
             Workspace.slug == body.slug, Workspace.deleted_at == None  # noqa: E711
@@ -102,7 +99,7 @@ class WorkspaceService:
         return _workspace_response(ws, member_count=1)
 
     @staticmethod
-    async def get(workspace_id: str, user: User) -> WorkspaceResponse:
+    async def get(workspace_id: str, user: User) -> dict:
         """Get a workspace by ID. Requires membership."""
         _get_membership(user, workspace_id)
 
@@ -116,7 +113,7 @@ class WorkspaceService:
     @staticmethod
     async def update(
         workspace_id: str, user: User, body: UpdateWorkspaceRequest
-    ) -> WorkspaceResponse:
+    ) -> dict:
         """Update workspace fields. Requires admin+ role."""
         membership = _get_membership(user, workspace_id)
         check_workspace_role(membership.role, minimum="admin")
@@ -148,7 +145,7 @@ class WorkspaceService:
         await ws.save()
 
     @staticmethod
-    async def list_for_user(user: User) -> list[WorkspaceResponse]:
+    async def list_for_user(user: User) -> list[dict]:
         """Return all non-deleted workspaces the user belongs to."""
         ws_ids = [m.workspace for m in user.workspaces]
         if not ws_ids:
@@ -169,7 +166,7 @@ class WorkspaceService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    async def list_members(workspace_id: str, user: User) -> list[MemberResponse]:
+    async def list_members(workspace_id: str, user: User) -> list[dict]:
         """List all members of a workspace. Requires membership."""
         _get_membership(user, workspace_id)
 
@@ -178,14 +175,14 @@ class WorkspaceService:
         for member in members:
             m = next(w for w in member.workspaces if w.workspace == workspace_id)
             result.append(
-                MemberResponse(
-                    id=str(member.id),
-                    email=member.email,
-                    name=member.full_name,
-                    avatar=member.avatar,
-                    role=m.role,
-                    joined_at=m.joined_at,
-                )
+                {
+                    "_id": str(member.id),
+                    "email": member.email,
+                    "name": member.full_name,
+                    "avatar": member.avatar,
+                    "role": m.role,
+                    "joinedAt": m.joined_at.isoformat() if m.joined_at else None,
+                }
             )
         return result
 
@@ -267,7 +264,7 @@ class WorkspaceService:
     @staticmethod
     async def create_invite(
         workspace_id: str, user: User, body: CreateInviteRequest
-    ) -> InviteResponse:
+    ) -> dict:
         """Create an invite. Requires admin+. Checks seat limit and existing pending invites."""
         membership = _get_membership(user, workspace_id)
         check_workspace_role(membership.role, minimum="admin")
@@ -307,7 +304,7 @@ class WorkspaceService:
         return _invite_response(invite)
 
     @staticmethod
-    async def validate_invite(token: str) -> InviteResponse:
+    async def validate_invite(token: str) -> dict:
         """Find an invite by token and return its status. No auth required."""
         invite = await Invite.find_one(Invite.token == token)
         if not invite:

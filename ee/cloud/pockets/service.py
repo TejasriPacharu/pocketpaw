@@ -12,7 +12,6 @@ from ee.cloud.pockets.schemas import (
     AddCollaboratorRequest,
     AddWidgetRequest,
     CreatePocketRequest,
-    PocketResponse,
     UpdatePocketRequest,
     UpdateWidgetRequest,
 )
@@ -21,28 +20,28 @@ from ee.cloud.shared.errors import Forbidden, NotFound
 from ee.cloud.shared.events import event_bus
 
 
-def _pocket_response(pocket: Pocket) -> PocketResponse:
-    """Build a PocketResponse from a Pocket document."""
-    return PocketResponse(
-        id=str(pocket.id),
-        workspace=pocket.workspace,
-        name=pocket.name,
-        description=pocket.description,
-        type=pocket.type,
-        icon=pocket.icon,
-        color=pocket.color,
-        owner=pocket.owner,
-        visibility=pocket.visibility,
-        team=pocket.team,
-        agents=pocket.agents,
-        widgets=[w.model_dump(by_alias=True) for w in pocket.widgets],
-        ripple_spec=pocket.rippleSpec,
-        share_link_token=pocket.share_link_token,
-        share_link_access=pocket.share_link_access,
-        shared_with=pocket.shared_with,
-        created_at=pocket.createdAt,
-        updated_at=pocket.updatedAt,
-    )
+def _pocket_response(pocket: Pocket) -> dict:
+    """Build a frontend-compatible dict from a Pocket document."""
+    return {
+        "_id": str(pocket.id),
+        "workspace": pocket.workspace,
+        "name": pocket.name,
+        "description": pocket.description,
+        "type": pocket.type,
+        "icon": pocket.icon,
+        "color": pocket.color,
+        "owner": pocket.owner,
+        "visibility": pocket.visibility,
+        "team": pocket.team,
+        "agents": pocket.agents,
+        "widgets": [w.model_dump(by_alias=True) for w in pocket.widgets],
+        "rippleSpec": pocket.rippleSpec,
+        "shareLinkToken": pocket.share_link_token,
+        "shareLinkAccess": pocket.share_link_access,
+        "sharedWith": pocket.shared_with,
+        "createdAt": pocket.createdAt.isoformat() if pocket.createdAt else None,
+        "updatedAt": pocket.updatedAt.isoformat() if pocket.updatedAt else None,
+    }
 
 
 def _check_owner(pocket: Pocket, user_id: str) -> None:
@@ -80,7 +79,7 @@ class PocketService:
     @staticmethod
     async def create(
         workspace_id: str, user_id: str, body: CreatePocketRequest
-    ) -> PocketResponse:
+    ) -> dict:
         """Create a pocket. Optionally link an existing session."""
         pocket = Pocket(
             workspace=workspace_id,
@@ -107,7 +106,7 @@ class PocketService:
         return _pocket_response(pocket)
 
     @staticmethod
-    async def list_pockets(workspace_id: str, user_id: str) -> list[PocketResponse]:
+    async def list_pockets(workspace_id: str, user_id: str) -> list[dict]:
         """List pockets visible to the user.
 
         Includes: owned by user, shared with user, or workspace-visible.
@@ -125,7 +124,7 @@ class PocketService:
         return [_pocket_response(p) for p in pockets]
 
     @staticmethod
-    async def get(pocket_id: str, user_id: str) -> PocketResponse:
+    async def get(pocket_id: str, user_id: str) -> dict:
         """Get a single pocket. Checks access."""
         pocket = await _get_pocket_or_404(pocket_id)
 
@@ -142,7 +141,7 @@ class PocketService:
     @staticmethod
     async def update(
         pocket_id: str, user_id: str, body: UpdatePocketRequest
-    ) -> PocketResponse:
+    ) -> dict:
         """Update pocket fields. Owner or edit-access users."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -180,7 +179,7 @@ class PocketService:
     @staticmethod
     async def add_widget(
         pocket_id: str, user_id: str, body: AddWidgetRequest
-    ) -> PocketResponse:
+    ) -> dict:
         """Add a widget to the pocket."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -203,7 +202,7 @@ class PocketService:
     @staticmethod
     async def update_widget(
         pocket_id: str, widget_id: str, user_id: str, body: UpdateWidgetRequest
-    ) -> PocketResponse:
+    ) -> dict:
         """Update a specific widget inside the pocket."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -233,7 +232,7 @@ class PocketService:
     @staticmethod
     async def remove_widget(
         pocket_id: str, widget_id: str, user_id: str
-    ) -> PocketResponse:
+    ) -> dict:
         """Remove a widget from the pocket."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -249,7 +248,7 @@ class PocketService:
     @staticmethod
     async def reorder_widgets(
         pocket_id: str, user_id: str, widget_ids: list[str]
-    ) -> PocketResponse:
+    ) -> dict:
         """Reorder widgets by the given ordered list of widget IDs."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -316,7 +315,7 @@ class PocketService:
         }
 
     @staticmethod
-    async def access_via_share_link(token: str) -> PocketResponse:
+    async def access_via_share_link(token: str) -> dict:
         """Access a pocket via share link token."""
         pocket = await Pocket.find_one(Pocket.share_link_token == token)
         if not pocket:
@@ -368,7 +367,7 @@ class PocketService:
     @staticmethod
     async def add_team_member(
         pocket_id: str, user_id: str, member_id: str
-    ) -> PocketResponse:
+    ) -> dict:
         """Add a team member to the pocket. Owner or edit access."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -382,7 +381,7 @@ class PocketService:
     @staticmethod
     async def remove_team_member(
         pocket_id: str, user_id: str, member_id: str
-    ) -> PocketResponse:
+    ) -> dict:
         """Remove a team member from the pocket. Owner or edit access."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -400,7 +399,7 @@ class PocketService:
     @staticmethod
     async def add_agent(
         pocket_id: str, user_id: str, agent_id: str
-    ) -> PocketResponse:
+    ) -> dict:
         """Add an agent to the pocket. Owner or edit access."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)
@@ -414,7 +413,7 @@ class PocketService:
     @staticmethod
     async def remove_agent(
         pocket_id: str, user_id: str, agent_id: str
-    ) -> PocketResponse:
+    ) -> dict:
         """Remove an agent from the pocket. Owner or edit access."""
         pocket = await _get_pocket_or_404(pocket_id)
         _check_edit_access(pocket, user_id)

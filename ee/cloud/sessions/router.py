@@ -8,7 +8,6 @@ from starlette.responses import Response
 from ee.cloud.license import require_license
 from ee.cloud.sessions.schemas import (
     CreateSessionRequest,
-    SessionResponse,
     UpdateSessionRequest,
 )
 from ee.cloud.sessions.service import SessionService
@@ -23,37 +22,37 @@ router = APIRouter(
 # ---------------------------------------------------------------------------
 
 
-@router.post("", response_model=SessionResponse)
+@router.post("")
 async def create_session(
     body: CreateSessionRequest,
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
-) -> SessionResponse:
+) -> dict:
     return await SessionService.create(workspace_id, user_id, body)
 
 
-@router.get("", response_model=list[SessionResponse])
+@router.get("")
 async def list_sessions(
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
-) -> list[SessionResponse]:
+) -> list[dict]:
     return await SessionService.list_sessions(workspace_id, user_id)
 
 
-@router.get("/{session_id}", response_model=SessionResponse)
+@router.get("/{session_id}")
 async def get_session(
     session_id: str,
     user_id: str = Depends(current_user_id),
-) -> SessionResponse:
+) -> dict:
     return await SessionService.get(session_id, user_id)
 
 
-@router.patch("/{session_id}", response_model=SessionResponse)
+@router.patch("/{session_id}")
 async def update_session(
     session_id: str,
     body: UpdateSessionRequest,
     user_id: str = Depends(current_user_id),
-) -> SessionResponse:
+) -> dict:
     return await SessionService.update(session_id, user_id, body)
 
 

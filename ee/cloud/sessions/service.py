@@ -13,7 +13,6 @@ from beanie import PydanticObjectId
 from ee.cloud.models.session import Session
 from ee.cloud.sessions.schemas import (
     CreateSessionRequest,
-    SessionResponse,
     UpdateSessionRequest,
 )
 from ee.cloud.shared.errors import Forbidden, NotFound
@@ -24,22 +23,22 @@ logger = logging.getLogger(__name__)
 RUNTIME_URL = os.environ.get("POCKETPAW_RUNTIME_URL", "http://localhost:8888")
 
 
-def _session_response(session: Session) -> SessionResponse:
-    """Build a SessionResponse from a Session document."""
-    return SessionResponse(
-        id=str(session.id),
-        session_id=session.sessionId,
-        workspace=session.workspace,
-        owner=session.owner,
-        title=session.title,
-        pocket=session.pocket,
-        group=session.group,
-        agent=session.agent,
-        message_count=session.messageCount,
-        last_activity=session.lastActivity,
-        created_at=session.createdAt,
-        deleted_at=session.deleted_at,
-    )
+def _session_response(session: Session) -> dict:
+    """Build a frontend-compatible dict from a Session document."""
+    return {
+        "_id": str(session.id),
+        "sessionId": session.sessionId,
+        "workspace": session.workspace,
+        "owner": session.owner,
+        "title": session.title,
+        "pocket": session.pocket,
+        "group": session.group,
+        "agent": session.agent,
+        "messageCount": session.messageCount,
+        "lastActivity": session.lastActivity.isoformat() if session.lastActivity else None,
+        "createdAt": session.createdAt.isoformat() if session.createdAt else None,
+        "deletedAt": session.deleted_at.isoformat() if session.deleted_at else None,
+    }
 
 
 class SessionService:
@@ -52,7 +51,7 @@ class SessionService:
     @staticmethod
     async def create(
         workspace_id: str, user_id: str, body: CreateSessionRequest
-    ) -> SessionResponse:
+    ) -> dict:
         """Create a session. Optionally link to a pocket on creation."""
         session = Session(
             sessionId=str(uuid.uuid4()),
@@ -81,7 +80,7 @@ class SessionService:
     @staticmethod
     async def list_sessions(
         workspace_id: str, user_id: str
-    ) -> list[SessionResponse]:
+    ) -> list[dict]:
         """List sessions for user in workspace, exclude deleted, sort by lastActivity desc."""
         sessions = (
             await Session.find(
@@ -95,7 +94,7 @@ class SessionService:
         return [_session_response(s) for s in sessions]
 
     @staticmethod
-    async def get(session_id: str, user_id: str) -> SessionResponse:
+    async def get(session_id: str, user_id: str) -> dict:
         """Get a session by _id or sessionId. Verify owner."""
         session = await SessionService._get_session(session_id, user_id)
         return _session_response(session)
@@ -103,7 +102,7 @@ class SessionService:
     @staticmethod
     async def update(
         session_id: str, user_id: str, body: UpdateSessionRequest
-    ) -> SessionResponse:
+    ) -> dict:
         """Update session fields. Owner only."""
         session = await SessionService._get_session(session_id, user_id)
 
@@ -129,7 +128,7 @@ class SessionService:
     @staticmethod
     async def list_for_pocket(
         pocket_id: str, user_id: str
-    ) -> list[SessionResponse]:
+    ) -> list[dict]:
         """Find sessions where pocket == pocket_id."""
         sessions = (
             await Session.find(
@@ -148,7 +147,7 @@ class SessionService:
         user_id: str,
         pocket_id: str,
         body: CreateSessionRequest,
-    ) -> SessionResponse:
+    ) -> dict:
         """Create a session with pocket already set."""
         body_with_pocket = CreateSessionRequest(
             title=body.title,

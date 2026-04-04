@@ -12,7 +12,7 @@ from ee.cloud.auth.core import (
     UserRead,
     UserCreate,
 )
-from ee.cloud.auth.schemas import ProfileUpdateRequest, SetWorkspaceRequest, UserResponse
+from ee.cloud.auth.schemas import ProfileUpdateRequest, SetWorkspaceRequest
 from ee.cloud.auth.service import AuthService
 from ee.cloud.models.user import User
 
@@ -44,7 +44,7 @@ router.include_router(
 
 
 @router.get("/auth/me")
-async def get_me(user: User = Depends(current_active_user)) -> UserResponse:
+async def get_me(user: User = Depends(current_active_user)):
     return await AuthService.get_profile(user)
 
 
@@ -52,7 +52,7 @@ async def get_me(user: User = Depends(current_active_user)) -> UserResponse:
 async def update_me(
     body: ProfileUpdateRequest,
     user: User = Depends(current_active_user),
-) -> UserResponse:
+):
     return await AuthService.update_profile(user, body)
 
 

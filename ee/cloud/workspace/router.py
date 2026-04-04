@@ -11,11 +11,8 @@ from ee.cloud.shared.deps import current_user
 from ee.cloud.workspace.schemas import (
     CreateInviteRequest,
     CreateWorkspaceRequest,
-    InviteResponse,
-    MemberResponse,
     UpdateMemberRoleRequest,
     UpdateWorkspaceRequest,
-    WorkspaceResponse,
 )
 from ee.cloud.workspace.service import WorkspaceService
 
@@ -28,35 +25,35 @@ router = APIRouter(
 # ---------------------------------------------------------------------------
 
 
-@router.post("", response_model=WorkspaceResponse)
+@router.post("")
 async def create_workspace(
     body: CreateWorkspaceRequest,
     user: User = Depends(current_user),
-) -> WorkspaceResponse:
+) -> dict:
     return await WorkspaceService.create(user, body)
 
 
-@router.get("", response_model=list[WorkspaceResponse])
+@router.get("")
 async def list_workspaces(
     user: User = Depends(current_user),
-) -> list[WorkspaceResponse]:
+) -> list[dict]:
     return await WorkspaceService.list_for_user(user)
 
 
-@router.get("/{workspace_id}", response_model=WorkspaceResponse)
+@router.get("/{workspace_id}")
 async def get_workspace(
     workspace_id: str,
     user: User = Depends(current_user),
-) -> WorkspaceResponse:
+) -> dict:
     return await WorkspaceService.get(workspace_id, user)
 
 
-@router.patch("/{workspace_id}", response_model=WorkspaceResponse)
+@router.patch("/{workspace_id}")
 async def update_workspace(
     workspace_id: str,
     body: UpdateWorkspaceRequest,
     user: User = Depends(current_user),
-) -> WorkspaceResponse:
+) -> dict:
     return await WorkspaceService.update(workspace_id, user, body)
 
 
@@ -74,11 +71,11 @@ async def delete_workspace(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{workspace_id}/members", response_model=list[MemberResponse])
+@router.get("/{workspace_id}/members")
 async def list_members(
     workspace_id: str,
     user: User = Depends(current_user),
-) -> list[MemberResponse]:
+) -> list[dict]:
     return await WorkspaceService.list_members(workspace_id, user)
 
 
@@ -108,17 +105,17 @@ async def remove_member(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{workspace_id}/invites", response_model=InviteResponse)
+@router.post("/{workspace_id}/invites")
 async def create_invite(
     workspace_id: str,
     body: CreateInviteRequest,
     user: User = Depends(current_user),
-) -> InviteResponse:
+) -> dict:
     return await WorkspaceService.create_invite(workspace_id, user, body)
 
 
-@router.get("/invites/{token}", response_model=InviteResponse)
-async def validate_invite(token: str) -> InviteResponse:
+@router.get("/invites/{token}")
+async def validate_invite(token: str) -> dict:
     return await WorkspaceService.validate_invite(token)
 
 

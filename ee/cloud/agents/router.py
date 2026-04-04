@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, Query
 from starlette.responses import Response
 
 from ee.cloud.agents.schemas import (
-    AgentResponse,
     CreateAgentRequest,
     DiscoverRequest,
     UpdateAgentRequest,
@@ -24,42 +23,42 @@ router = APIRouter(
 # ---------------------------------------------------------------------------
 
 
-@router.post("", response_model=AgentResponse)
+@router.post("")
 async def create_agent(
     body: CreateAgentRequest,
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
-) -> AgentResponse:
+) -> dict:
     return await AgentService.create(workspace_id, user_id, body)
 
 
-@router.get("", response_model=list[AgentResponse])
+@router.get("")
 async def list_agents(
     workspace_id: str = Depends(current_workspace_id),
     query: str | None = Query(default=None),
-) -> list[AgentResponse]:
+) -> list[dict]:
     return await AgentService.list_agents(workspace_id, query)
 
 
-@router.get("/{agent_id}", response_model=AgentResponse)
-async def get_agent(agent_id: str) -> AgentResponse:
+@router.get("/{agent_id}")
+async def get_agent(agent_id: str) -> dict:
     return await AgentService.get(agent_id)
 
 
-@router.get("/uname/{slug}", response_model=AgentResponse)
+@router.get("/uname/{slug}")
 async def get_by_slug(
     slug: str,
     workspace_id: str = Depends(current_workspace_id),
-) -> AgentResponse:
+) -> dict:
     return await AgentService.get_by_slug(workspace_id, slug)
 
 
-@router.patch("/{agent_id}", response_model=AgentResponse)
+@router.patch("/{agent_id}")
 async def update_agent(
     agent_id: str,
     body: UpdateAgentRequest,
     user_id: str = Depends(current_user_id),
-) -> AgentResponse:
+) -> dict:
     return await AgentService.update(agent_id, user_id, body)
 
 
@@ -77,10 +76,10 @@ async def delete_agent(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/discover", response_model=list[AgentResponse])
+@router.post("/discover")
 async def discover_agents(
     body: DiscoverRequest,
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
-) -> list[AgentResponse]:
+) -> list[dict]:
     return await AgentService.discover(workspace_id, user_id, body)

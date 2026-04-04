@@ -5,30 +5,30 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from ee.cloud.models.user import User
-from ee.cloud.auth.schemas import ProfileUpdateRequest, UserResponse
+from ee.cloud.auth.schemas import ProfileUpdateRequest
 
 
 class AuthService:
     """Stateless service encapsulating auth-related business logic."""
 
     @staticmethod
-    async def get_profile(user: User) -> UserResponse:
+    async def get_profile(user: User) -> dict:
         """Return the current user's profile as a UserResponse."""
-        return UserResponse(
-            id=str(user.id),
-            email=user.email,
-            name=user.full_name,
-            image=user.avatar,
-            email_verified=user.is_verified,
-            active_workspace=user.active_workspace,
-            workspaces=[
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.full_name,
+            "image": user.avatar,
+            "emailVerified": user.is_verified,
+            "activeWorkspace": user.active_workspace,
+            "workspaces": [
                 {"workspace": w.workspace, "role": w.role}
                 for w in user.workspaces
             ],
-        )
+        }
 
     @staticmethod
-    async def update_profile(user: User, body: ProfileUpdateRequest) -> UserResponse:
+    async def update_profile(user: User, body: ProfileUpdateRequest) -> dict:
         """Update mutable profile fields and return the updated profile."""
         if body.full_name is not None:
             user.full_name = body.full_name
