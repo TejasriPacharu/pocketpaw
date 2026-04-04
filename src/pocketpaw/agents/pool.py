@@ -173,12 +173,6 @@ class AgentPool:
             elif "google" in settings.agent_backend:
                 settings.google_adk_model = model
 
-        # Override temperature/max_tokens if set
-        if config.get("temperature") is not None:
-            settings.claude_sdk_temperature = config["temperature"]
-        if config.get("max_tokens") is not None:
-            settings.claude_sdk_max_tokens = config["max_tokens"]
-
         # Instantiate backend
         backend_cls = get_backend_class(settings.agent_backend)
         if not backend_cls:
