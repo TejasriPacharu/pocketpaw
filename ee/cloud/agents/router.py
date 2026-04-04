@@ -159,6 +159,38 @@ async def search_knowledge(agent_id: str, q: str = Query(..., min_length=1), lim
     return {"results": results}
 
 
+from fastapi import UploadFile, File as FastAPIFile
+
+
+@router.post("/{agent_id}/knowledge/upload")
+async def upload_and_ingest(agent_id: str, file: UploadFile = FastAPIFile(...)):
+    """Upload a file and ingest into agent's knowledge base.
+
+    Supports: .pdf, .txt, .md, .csv, .json, .docx, .png, .jpg, .jpeg, .webp
+    """
+    from ee.cloud.agents.knowledge import KnowledgeService
+    import tempfile
+    from pathlib import Path
+
+    if not file.filename:
+        return {"error": "No filename provided"}
+
+    suffix = Path(file.filename).suffix.lower()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        result = await KnowledgeService.ingest_file(agent_id, tmp_path)
+        result["originalName"] = file.filename
+        result["size"] = len(content)
+        return result
+    finally:
+        import os
+        os.unlink(tmp_path)
+
+
 @router.delete("/{agent_id}/knowledge", status_code=204)
 async def clear_knowledge(agent_id: str):
     """Clear all knowledge for an agent."""

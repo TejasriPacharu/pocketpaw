@@ -1,13 +1,21 @@
-"""Agent knowledge ingestion — text, URLs, and files into per-agent ChromaDB collections.
+"""Agent knowledge ingestion — text, URLs, PDFs, and images into per-agent ChromaDB collections.
 
 Each agent gets its own Chroma collection: agent_{agent_id}
 Documents are chunked and embedded for RAG retrieval during conversations.
+
+Supports:
+- Plain text
+- URLs (HTML → text extraction)
+- PDFs (text extraction via pypdf or pdfplumber)
+- Images (OCR via pytesseract or description via LLM)
+- Common docs (.txt, .md, .csv, .json)
 """
 from __future__ import annotations
 
 import hashlib
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -92,6 +100,117 @@ class KnowledgeService:
         result = await KnowledgeService.ingest_text(agent_id, clean, source=url)
         result["url"] = url
         return result
+
+    @staticmethod
+    async def ingest_pdf(agent_id: str, file_path: str) -> dict:
+        """Extract text from PDF and ingest."""
+        path = Path(file_path)
+        if not path.exists():
+            return {"error": f"File not found: {file_path}"}
+
+        text = ""
+        # Try pypdf first (lighter), fall back to pdfplumber (handles tables better)
+        try:
+            import pypdf
+
+            reader = pypdf.PdfReader(str(path))
+            pages = []
+            for page in reader.pages:
+                page_text = page.extract_text() or ""
+                if page_text.strip():
+                    pages.append(page_text)
+            text = "\n\n".join(pages)
+        except ImportError:
+            try:
+                import pdfplumber
+
+                with pdfplumber.open(str(path)) as pdf:
+                    pages = []
+                    for page in pdf.pages:
+                        page_text = page.extract_text() or ""
+                        if page_text.strip():
+                            pages.append(page_text)
+                    text = "\n\n".join(pages)
+            except ImportError:
+                return {"error": "Install pypdf or pdfplumber for PDF support: pip install pypdf"}
+
+        if not text.strip():
+            return {"error": "No text extracted from PDF", "file": path.name}
+
+        result = await KnowledgeService.ingest_text(agent_id, text, source=f"pdf:{path.name}")
+        result["file"] = path.name
+        result["pages"] = len(text.split("\n\n"))
+        return result
+
+    @staticmethod
+    async def ingest_image(agent_id: str, file_path: str) -> dict:
+        """Extract text from image via OCR and ingest."""
+        path = Path(file_path)
+        if not path.exists():
+            return {"error": f"File not found: {file_path}"}
+
+        text = ""
+        try:
+            from PIL import Image
+            import pytesseract
+
+            img = Image.open(str(path))
+            text = pytesseract.image_to_string(img)
+        except ImportError:
+            return {"error": "Install Pillow and pytesseract for image OCR: pip install Pillow pytesseract"}
+
+        if not text.strip():
+            return {"error": "No text extracted from image", "file": path.name}
+
+        result = await KnowledgeService.ingest_text(agent_id, text, source=f"image:{path.name}")
+        result["file"] = path.name
+        return result
+
+    @staticmethod
+    async def ingest_file(agent_id: str, file_path: str) -> dict:
+        """Auto-detect file type and ingest accordingly."""
+        path = Path(file_path)
+        if not path.exists():
+            return {"error": f"File not found: {file_path}"}
+
+        suffix = path.suffix.lower()
+
+        # PDF
+        if suffix == ".pdf":
+            return await KnowledgeService.ingest_pdf(agent_id, file_path)
+
+        # Images
+        if suffix in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"):
+            return await KnowledgeService.ingest_image(agent_id, file_path)
+
+        # Text-based files
+        if suffix in (".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".html", ".xml", ".log"):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except Exception as exc:
+                return {"error": f"Failed to read file: {exc}"}
+            if not text.strip():
+                return {"error": "File is empty", "file": path.name}
+            result = await KnowledgeService.ingest_text(agent_id, text, source=f"file:{path.name}")
+            result["file"] = path.name
+            return result
+
+        # Word documents
+        if suffix == ".docx":
+            try:
+                import docx
+
+                doc = docx.Document(str(path))
+                text = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            except ImportError:
+                return {"error": "Install python-docx for .docx support: pip install python-docx"}
+            if not text.strip():
+                return {"error": "No text extracted from document", "file": path.name}
+            result = await KnowledgeService.ingest_text(agent_id, text, source=f"docx:{path.name}")
+            result["file"] = path.name
+            return result
+
+        return {"error": f"Unsupported file type: {suffix}", "file": path.name}
 
     @staticmethod
     async def search(agent_id: str, query: str, limit: int = 5) -> list[str]:

@@ -16,18 +16,44 @@ def _get_embedding_function(provider: str = "default", model: str = "all-MiniLM-
         - "default": Chroma's built-in SentenceTransformer (all-MiniLM-L6-v2)
         - "huggingface": Any HuggingFace model ID (e.g. BAAI/bge-small-en-v1.5)
         - "openai": OpenAI embedding models (requires OPENAI_API_KEY)
+        - "google": Gemini Embedding 2 (requires GOOGLE_API_KEY) — multimodal: text + images
+        - "voyage": Voyage AI models (requires VOYAGE_API_KEY) — multimodal support
     """
+    import os
+
     if provider == "openai":
         try:
             from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-            import os
 
             return OpenAIEmbeddingFunction(
                 api_key=os.environ.get("OPENAI_API_KEY", ""),
                 model_name=model or "text-embedding-3-small",
             )
         except ImportError:
-            pass  # fall through to default
+            pass
+
+    if provider == "google":
+        try:
+            from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFunction
+
+            return GoogleGenerativeAiEmbeddingFunction(
+                api_key=os.environ.get("GOOGLE_API_KEY", ""),
+                model_name=model or "models/gemini-embedding-exp-03-07",
+                task_type="RETRIEVAL_DOCUMENT",
+            )
+        except ImportError:
+            pass
+
+    if provider == "voyage":
+        try:
+            from chromadb.utils.embedding_functions import VoyageAIEmbeddingFunction
+
+            return VoyageAIEmbeddingFunction(
+                api_key=os.environ.get("VOYAGE_API_KEY", ""),
+                model_name=model or "voyage-multimodal-3",
+            )
+        except ImportError:
+            pass
 
     if provider == "huggingface" or (provider == "default" and model != "all-MiniLM-L6-v2"):
         try:
@@ -37,7 +63,7 @@ def _get_embedding_function(provider: str = "default", model: str = "all-MiniLM-
 
             return SentenceTransformerEmbeddingFunction(model_name=model)
         except ImportError:
-            pass  # fall through to default
+            pass
 
     # Default: Chroma's built-in (all-MiniLM-L6-v2)
     return None
