@@ -5,7 +5,7 @@ Each has router.py (thin), service.py (logic), schemas.py (validation).
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from ee.cloud.shared.errors import CloudError
@@ -34,6 +34,42 @@ def mount_cloud(app: FastAPI) -> None:
     app.include_router(chat_router, prefix="/api/v1")
     app.include_router(pockets_router, prefix="/api/v1")
     app.include_router(sessions_router, prefix="/api/v1")
+
+    # User search endpoint — used by group settings, pocket sharing
+    from ee.cloud.models.user import User as UserModel
+    from ee.cloud.shared.deps import current_user, current_workspace_id
+
+    @app.get("/api/v1/users", tags=["Users"])
+    async def search_users(
+        search: str = "",
+        limit: int = 10,
+        user: UserModel = Depends(current_user),
+        workspace_id: str = Depends(current_workspace_id),
+    ):
+        import re
+        query = {"workspaces.workspace": workspace_id}
+        if search:
+            pattern = re.compile(re.escape(search), re.IGNORECASE)
+            query["$or"] = [
+                {"email": {"$regex": pattern}},
+                {"full_name": {"$regex": pattern}},
+            ]
+        users = await UserModel.find(query).limit(limit).to_list()
+        return [
+            {
+                "_id": str(u.id),
+                "email": u.email,
+                "name": u.full_name,
+                "avatar": u.avatar,
+                "status": u.status,
+            }
+            for u in users
+        ]
+
+    # Mount WebSocket at root path (not under /api/v1 prefix)
+    # so frontend can connect to ws://host/ws/cloud?token=...
+    from ee.cloud.chat.router import websocket_endpoint
+    app.add_api_websocket_route("/ws/cloud", websocket_endpoint)
 
     # License endpoint (no auth)
     @app.get("/api/v1/license", tags=["License"])

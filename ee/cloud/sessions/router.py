@@ -35,7 +35,10 @@ async def create_session(
 async def list_sessions(
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
+    pocket: str | None = None,
 ) -> list[dict]:
+    if pocket and pocket != "none":
+        return await SessionService.list_for_pocket(pocket, user_id)
     return await SessionService.list_sessions(workspace_id, user_id)
 
 

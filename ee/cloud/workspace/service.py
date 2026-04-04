@@ -278,17 +278,26 @@ class WorkspaceService:
         if member_count >= ws.seats:
             raise SeatLimitError(ws.seats)
 
-        # Check for existing pending invite to same email
-        existing = await Invite.find_one(
-            Invite.workspace == workspace_id,
-            Invite.email == body.email,
-            Invite.accepted == False,  # noqa: E712
-            Invite.revoked == False,  # noqa: E712
-        )
+        # Check for existing pending invite to same email + group combination.
+        # Different groups can each have their own pending invite for the same email.
+        pending_query: dict = {
+            "workspace": workspace_id,
+            "email": body.email,
+            "accepted": False,
+            "revoked": False,
+        }
+        if body.group_id:
+            pending_query["group"] = body.group_id
+        else:
+            # Workspace-level invite (no group) — only one at a time
+            pending_query["group"] = None
+
+        existing = await Invite.find_one(pending_query)
         if existing and not existing.expired:
             raise ConflictError(
                 "invite.already_pending",
-                f"A pending invite already exists for {body.email}",
+                f"A pending invite already exists for {body.email}"
+                + (f" in this group" if body.group_id else ""),
             )
 
         invite = Invite(
@@ -326,18 +335,17 @@ class WorkspaceService:
         if invite.expired:
             raise Forbidden("invite.expired", "This invite has expired")
 
-        # Check seat limit
         ws = await Workspace.get(PydanticObjectId(invite.workspace))
         if not ws or ws.deleted_at is not None:
             raise NotFound("workspace", invite.workspace)
 
-        member_count = await _count_members(invite.workspace)
-        if member_count >= ws.seats:
-            raise SeatLimitError(ws.seats)
-
-        # Check user not already a member
+        # Add to workspace if not already a member
         already_member = any(m.workspace == invite.workspace for m in user.workspaces)
         if not already_member:
+            # Only check seat limit for new members
+            member_count = await _count_members(invite.workspace)
+            if member_count >= ws.seats:
+                raise SeatLimitError(ws.seats)
             user.workspaces.append(
                 WorkspaceMembership(
                     workspace=invite.workspace,
@@ -345,6 +353,7 @@ class WorkspaceService:
                     joined_at=datetime.now(UTC),
                 )
             )
+            user.active_workspace = invite.workspace
             await user.save()
 
         invite.accepted = True
