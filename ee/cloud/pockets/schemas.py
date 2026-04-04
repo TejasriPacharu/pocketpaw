@@ -1,4 +1,9 @@
-"""Pockets domain — request/response schemas."""
+"""Pockets domain — request/response schemas.
+
+Changes: Added agents, rippleSpec (aliased), and widgets fields to CreatePocketRequest
+so the frontend can pass the full pocket spec on creation instead of requiring
+separate follow-up calls.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +21,9 @@ class CreatePocketRequest(BaseModel):
     color: str = ""
     visibility: str = Field(default="private", pattern="^(private|workspace|public)$")
     session_id: str | None = Field(default=None, alias="sessionId")
+    agents: list[str] = Field(default_factory=list)  # Agent IDs to assign
     ripple_spec: dict | None = Field(default=None, alias="rippleSpec")
+    widgets: list[dict] = Field(default_factory=list)  # Initial widget definitions
 
     model_config = {"populate_by_name": True}
 

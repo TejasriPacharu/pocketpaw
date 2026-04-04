@@ -80,7 +80,23 @@ class PocketService:
     async def create(
         workspace_id: str, user_id: str, body: CreatePocketRequest
     ) -> dict:
-        """Create a pocket. Optionally link an existing session."""
+        """Create a pocket with optional agents, widgets, and rippleSpec."""
+        # Build initial widgets from request body
+        initial_widgets: list[Widget] = []
+        for w in body.widgets:
+            initial_widgets.append(Widget(
+                name=w.get("name", "Widget"),
+                type=w.get("type", "custom"),
+                icon=w.get("icon", ""),
+                color=w.get("color", ""),
+                span=w.get("span", "col-span-1"),
+                dataSourceType=w.get("dataSourceType", w.get("data_source_type", "static")),
+                config=w.get("config", {}),
+                props=w.get("props", {}),
+                data=w.get("data"),
+                assignedAgent=w.get("assignedAgent", w.get("assigned_agent")),
+            ))
+
         pocket = Pocket(
             workspace=workspace_id,
             name=body.name,
@@ -90,6 +106,8 @@ class PocketService:
             color=body.color,
             owner=user_id,
             visibility=body.visibility,
+            agents=body.agents,
+            widgets=initial_widgets,
             rippleSpec=normalize_ripple_spec(body.ripple_spec) if body.ripple_spec else None,
         )
         await pocket.insert()
