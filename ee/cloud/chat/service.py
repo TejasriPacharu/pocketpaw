@@ -38,8 +38,53 @@ def _generate_slug(name: str) -> str:
     return slug.strip("-")
 
 
-def _group_response(group: Group) -> dict:
-    """Convert a Group document to a frontend-compatible dict."""
+async def _group_response(group: Group) -> dict:
+    """Convert a Group document to a frontend-compatible dict.
+
+    Populates member IDs → {_id, name, email} and agent IDs → {_id, agent, name, role, respond_mode}.
+    """
+    from ee.cloud.models.user import User
+    from ee.cloud.models.agent import Agent as AgentModel
+
+    # Populate members: user ID → {_id, name, email}
+    populated_members = []
+    for uid in group.members:
+        try:
+            user = await User.get(PydanticObjectId(uid))
+            if user:
+                populated_members.append({
+                    "_id": str(user.id),
+                    "name": user.full_name or user.email,
+                    "email": user.email,
+                    "avatar": user.avatar,
+                })
+            else:
+                populated_members.append({"_id": uid, "name": uid, "email": ""})
+        except Exception:
+            populated_members.append({"_id": uid, "name": uid, "email": ""})
+
+    # Populate agents: agent ID → {_id, agent, name, role, respond_mode}
+    populated_agents = []
+    for ga in group.agents:
+        try:
+            agent_doc = await AgentModel.get(PydanticObjectId(ga.agent))
+            populated_agents.append({
+                "_id": str(agent_doc.id) if agent_doc else ga.agent,
+                "agent": ga.agent,
+                "name": agent_doc.name if agent_doc else "Agent",
+                "uname": agent_doc.slug if agent_doc else "",
+                "role": ga.role,
+                "respond_mode": ga.respond_mode,
+            })
+        except Exception:
+            populated_agents.append({
+                "_id": ga.agent,
+                "agent": ga.agent,
+                "name": "Agent",
+                "role": ga.role,
+                "respond_mode": ga.respond_mode,
+            })
+
     return {
         "_id": str(group.id),
         "workspace": group.workspace,
@@ -50,8 +95,8 @@ def _group_response(group: Group) -> dict:
         "icon": group.icon,
         "color": group.color,
         "owner": group.owner,
-        "members": group.members,
-        "agents": [a.model_dump() for a in group.agents],
+        "members": populated_members,
+        "agents": populated_agents,
         "pinnedMessages": group.pinned_messages,
         "archived": group.archived,
         "lastMessageAt": group.last_message_at.isoformat() if group.last_message_at else None,
@@ -153,7 +198,7 @@ class GroupService:
             owner=user_id,
         )
         await group.insert()
-        return _group_response(group)
+        return await _group_response(group)
 
     @staticmethod
     async def list_groups(workspace_id: str, user_id: str) -> list[dict]:
@@ -172,7 +217,7 @@ class GroupService:
                 ],
             }
         ).to_list()
-        return [_group_response(g) for g in groups]
+        return [await _group_response(g) for g in groups]
 
     @staticmethod
     async def get_group(group_id: str, user_id: str) -> dict:
@@ -182,7 +227,7 @@ class GroupService:
         if group.type in ("private", "dm"):
             _require_group_member(group, user_id)
 
-        return _group_response(group)
+        return await _group_response(group)
 
     @staticmethod
     async def update_group(
@@ -206,7 +251,7 @@ class GroupService:
             group.color = body.color
 
         await group.save()
-        return _group_response(group)
+        return await _group_response(group)
 
     @staticmethod
     async def archive_group(group_id: str, user_id: str) -> None:
@@ -350,7 +395,7 @@ class GroupService:
             }
         )
         if existing:
-            return _group_response(existing)
+            return await _group_response(existing)
 
         group = Group(
             workspace=workspace_id,
@@ -361,7 +406,7 @@ class GroupService:
             owner=user_id,
         )
         await group.insert()
-        return _group_response(group)
+        return await _group_response(group)
 
 
 # ---------------------------------------------------------------------------
