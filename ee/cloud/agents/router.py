@@ -107,3 +107,62 @@ async def discover_agents(
     user_id: str = Depends(current_user_id),
 ) -> list[dict]:
     return await AgentService.discover(workspace_id, user_id, body)
+
+
+# ---------------------------------------------------------------------------
+# Knowledge
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{agent_id}/knowledge/text")
+async def ingest_text(agent_id: str, body: dict):
+    """Ingest plain text into agent's knowledge base."""
+    from ee.cloud.agents.knowledge import KnowledgeService
+
+    text = body.get("text", "")
+    source = body.get("source", "manual")
+    if not text:
+        return {"error": "No text provided"}
+    return await KnowledgeService.ingest_text(agent_id, text, source)
+
+
+@router.post("/{agent_id}/knowledge/url")
+async def ingest_url(agent_id: str, body: dict):
+    """Fetch and ingest a URL into agent's knowledge base."""
+    from ee.cloud.agents.knowledge import KnowledgeService
+
+    url = body.get("url", "")
+    if not url:
+        return {"error": "No URL provided"}
+    return await KnowledgeService.ingest_url(agent_id, url)
+
+
+@router.post("/{agent_id}/knowledge/urls")
+async def ingest_urls(agent_id: str, body: dict):
+    """Batch ingest multiple URLs."""
+    from ee.cloud.agents.knowledge import KnowledgeService
+
+    urls = body.get("urls", [])
+    results = []
+    for url in urls:
+        result = await KnowledgeService.ingest_url(agent_id, url)
+        results.append(result)
+    return results
+
+
+@router.get("/{agent_id}/knowledge/search")
+async def search_knowledge(agent_id: str, q: str = Query(..., min_length=1), limit: int = 5):
+    """Search agent's knowledge base."""
+    from ee.cloud.agents.knowledge import KnowledgeService
+
+    results = await KnowledgeService.search(agent_id, q, limit)
+    return {"results": results}
+
+
+@router.delete("/{agent_id}/knowledge", status_code=204)
+async def clear_knowledge(agent_id: str):
+    """Clear all knowledge for an agent."""
+    from ee.cloud.agents.knowledge import KnowledgeService
+
+    await KnowledgeService.clear(agent_id)
+    return Response(status_code=204)
