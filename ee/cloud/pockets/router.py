@@ -17,6 +17,7 @@ from ee.cloud.pockets.schemas import (
     UpdateWidgetRequest,
 )
 from ee.cloud.pockets.service import PocketService
+from ee.cloud.sessions.schemas import CreateSessionRequest, SessionResponse
 from ee.cloud.shared.deps import current_user_id, current_workspace_id
 
 router = APIRouter(
@@ -225,21 +226,27 @@ async def remove_collaborator(
 
 
 # ---------------------------------------------------------------------------
-# Sessions under pocket (placeholder — wired in Task 15)
+# Sessions under pocket
 # ---------------------------------------------------------------------------
 
 
 @router.post("/{pocket_id}/sessions")
 async def create_pocket_session(
     pocket_id: str,
+    body: CreateSessionRequest,
+    workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
-) -> dict:
-    return {"todo": "wired in Task 15"}
+) -> SessionResponse:
+    from ee.cloud.sessions.service import SessionService
+
+    return await SessionService.create_for_pocket(workspace_id, user_id, pocket_id, body)
 
 
 @router.get("/{pocket_id}/sessions")
 async def list_pocket_sessions(
     pocket_id: str,
     user_id: str = Depends(current_user_id),
-) -> dict:
-    return {"todo": "wired in Task 15"}
+) -> list[SessionResponse]:
+    from ee.cloud.sessions.service import SessionService
+
+    return await SessionService.list_for_pocket(pocket_id, user_id)
