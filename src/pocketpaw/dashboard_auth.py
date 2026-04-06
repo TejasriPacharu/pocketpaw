@@ -448,6 +448,18 @@ async def get_qr_code(request: Request):
     tunnel = get_tunnel_manager()
     status = tunnel.get_status()
 
+    # Require an authenticated request before issuing any pairing QR.
+    # The QR should never mint a fresh credential for anonymous callers.
+    auth_header = request.headers.get("Authorization", "")
+    bearer = (
+        auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else ""
+    )
+    current_token = get_access_token()
+    if bearer != current_token:
+        cookie_token = request.cookies.get("pocketpaw_session")
+        if cookie_token != current_token:
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
     # Use a short-lived session token instead of the master token
     # to limit exposure in browser history, screenshots, and logs.
     qr_token = create_session_token(get_access_token(), ttl_hours=1)
