@@ -1,808 +1,554 @@
 # Knowledge Base Index
 
-**67 articles** | **604 concepts** | **174 categories**
+**38 articles** | **504 concepts** | **131 categories**
 
 ## Categories
 
-### AI specification processing
+### API Gateway Layer
 
-- [ripple_normalizer — AI-generated rippleSpec validation and normalization](ripplenormalizer-ai-generated-ripplespec-validation-and-normalization.md) — Normalizes AI-generated rippleSpec objects before persistence by ensuring envelo
+- [auth/__init__ — Central re-export hub for authentication and user management](authinit-central-re-export-hub-for-authentication-and-user-management.md) — This module serves as the public API facade for the entire authentication domain
 
-### API Router
+### API Router / Endpoint Layer
 
-- [router — FastAPI endpoints for agent management and knowledge operations](router-fastapi-endpoints-for-agent-management-and-knowledge-operations.md) — This module defines the FastAPI router for the Agents domain, exposing REST API 
+- [ee/cloud/kb/__init__ — Knowledge Base Domain Package Initialization and Endpoint Exposure](eecloudkbinit-knowledge-base-domain-package-initialization-and-endpoint-exposure.md) — This module serves as the entry point for the Knowledge Base (KB) domain within 
+- [ee.cloud.workspace — Router re-export for FastAPI workspace endpoints](eecloudworkspace-router-re-export-for-fastapi-workspace-endpoints.md) — This module serves as the public entry point for the workspace domain's FastAPI 
 
-### API Routing
+### API Router Layer
 
-- [Sessions Router — FastAPI endpoint handler for session management](sessions-router-fastapi-endpoint-handler-for-session-management.md) — This module defines the FastAPI router for the Sessions domain, exposing RESTful
+- [deps — FastAPI dependency injection layer for cloud router authentication and authorization](deps-fastapi-dependency-injection-layer-for-cloud-router-authentication-and-auth.md) — This module provides FastAPI dependency functions that extract and validate user
 
-### API contracts
+### API Router — Bootstrap & Mounting
 
-- [schemas — Auth domain request/response data models](schemas-auth-domain-requestresponse-data-models.md) — Defines Pydantic request and response schemas for authentication operations in t
-- [schemas — Pydantic request/response schemas for the Workspace domain](schemas-pydantic-requestresponse-schemas-for-the-workspace-domain.md) — Defines the data validation and serialization layer for workspace-related API op
-- [schemas — Sessions domain request/response models](schemas-sessions-domain-requestresponse-models.md) — Defines Pydantic models for session management operations in the pocketPaw syste
-- [schemas — Workspace Domain Request/Response Models](schemas-workspace-domain-requestresponse-models.md) — Defines Pydantic-based request and response schemas for workspace management ope
+- [ee.cloud.__init__ — Cloud domain orchestration and FastAPI application bootstrap](eecloudinit-cloud-domain-orchestration-and-fastapi-application-bootstrap.md) — This module is the entry point for PocketPaw's enterprise cloud layer. It bootst
 
-### API facade
+### API contract layer
 
-- [service — Chat domain re-export module for backward compatibility](service-chat-domain-re-export-module-for-backward-compatibility.md) — A thin re-export module that provides backward-compatible access to chat domain 
+- [schemas — Pydantic request/response contracts for session lifecycle operations](schemas-pydantic-requestresponse-contracts-for-session-lifecycle-operations.md) — This module defines the HTTP API contracts (request bodies and response payloads
+- [schemas — Pydantic request/response data models for workspace domain operations](schemas-pydantic-requestresponse-data-models-for-workspace-domain-operations.md) — This module defines the contract between the workspace API layer and its consume
 
-### API infrastructure
+### API gateway / facade
 
-- [auth.__init__ — Authentication domain re-exports](authinit-authentication-domain-re-exports.md) — This module serves as the public API entry point for the authentication domain, 
+- [chat/__init__.py — Entry point for chat domain with groups, messages, and WebSocket real-time capabilities](chatinitpy-entry-point-for-chat-domain-with-groups-messages-and-websocket-real-t.md) — This module serves as the public API gateway for the chat domain, re-exporting t
 
-### API response formatting
+### API layer
 
-- [errors — Unified error hierarchy for cloud module](errors-unified-error-hierarchy-for-cloud-module.md) — Defines a consistent exception hierarchy for the cloud module that replaces raw 
+- [core — Enterprise JWT authentication with cookie and bearer transport for FastAPI](core-enterprise-jwt-authentication-with-cookie-and-bearer-transport-for-fastapi.md) — This module implements a complete authentication system for PocketPaw using fast
+- [schemas — Pydantic request/response models for agent lifecycle and discovery operations](schemas-pydantic-requestresponse-models-for-agent-lifecycle-and-discovery-operat.md) — This module defines four Pydantic BaseModel classes that serve as the contract l
+- [schemas — Request/response data validation for the knowledge base REST API](schemas-requestresponse-data-validation-for-the-knowledge-base-rest-api.md) — This module defines Pydantic request/response schemas for the knowledge base dom
 
-### API routing
+### API router / integration layer
 
-- [chat.__init__ — Chat domain entry point for groups, messages, and WebSocket real-time communication](chatinit-chat-domain-entry-point-for-groups-messages-and-websocket-real-time-com.md) — This module serves as the entry point for the chat domain, exposing the router f
-- [ee.cloud.pockets.__init__ — Router Export Module](eecloudpocketsinit-router-export-module.md) — This module serves as the public API entry point for the pockets package, export
-- [ee.cloud.workspace — Workspace Package Entry Point](eecloudworkspace-workspace-package-entry-point.md) — This is the package initializer for the Enterprise Edition (EE) cloud workspace 
-- [router — Auth domain FastAPI endpoint definitions](router-auth-domain-fastapi-endpoint-definitions.md) — Defines FastAPI routes for authentication operations including login, logout, re
+- [ee.cloud.agents — Package initialization and router export for enterprise cloud agent functionality](eecloudagents-package-initialization-and-router-export-for-enterprise-cloud-agen.md) — This is a minimal package initialization module that serves as the public API en
 
-### API schemas
+### API router and HTTP layer
 
-- [schemas — Agents domain request/response models](schemas-agents-domain-requestresponse-models.md) — Defines Pydantic request and response schemas for the agents domain. Provides va
+- [ee.cloud.sessions — Entry point and router export for session management APIs](eecloudsessions-entry-point-and-router-export-for-session-management-apis.md) — This module serves as the public API entry point for the sessions package, expor
 
-### Access Control
+### API router layer
 
-- [invite — Workspace membership invitation management](invite-workspace-membership-invitation-management.md) — This module defines the Invite document model for managing workspace membership 
+- [pockets.__init__ — Entry point and public API aggregator for the pockets subsystem](pocketsinit-entry-point-and-public-api-aggregator-for-the-pockets-subsystem.md) — This module serves as the public interface for the enterprise cloud pockets subs
+- [router — FastAPI authentication endpoints and user profile management](router-fastapi-authentication-endpoints-and-user-profile-management.md) — This module exposes HTTP endpoints for user authentication, registration, profil
 
-### Agents Domain
+### API schemas and data models
 
-- [router — FastAPI endpoints for agent management and knowledge operations](router-fastapi-endpoints-for-agent-management-and-knowledge-operations.md) — This module defines the FastAPI router for the Agents domain, exposing REST API 
+- [schemas — Pydantic models for authentication request/response validation](schemas-pydantic-models-for-authentication-requestresponse-validation.md) — This module defines three Pydantic BaseModel classes that standardize the shape 
+
+### Access Control & Security
+
+- [Workspace Domain Service - Business Logic for Enterprise Cloud](untitled.md) — A stateless service layer that encapsulates workspace business logic including C
+
+### Adapter/Bridge Pattern
+
+- [backend_adapter — Adapter that makes PocketPaw's agent backends usable as knowledge base CompilerBackends](backendadapter-adapter-that-makes-pocketpaws-agent-backends-usable-as-knowledge.md) — This module provides `PocketPawCompilerBackend`, an adapter class that implement
+
+### Agent Infrastructure
+
+- [backend_adapter — Adapter that makes PocketPaw's agent backends usable as knowledge base CompilerBackends](backendadapter-adapter-that-makes-pocketpaws-agent-backends-usable-as-knowledge.md) — This module provides `PocketPawCompilerBackend`, an adapter class that implement
+
+### Agent Integration Layer
+
+- [ripple_normalizer — Normalizes AI-generated pocket specifications into a consistent, persistence-ready format](ripplenormalizer-normalizes-ai-generated-pocket-specifications-into-a-consistent.md) — This module provides a single public function, `normalize_ripple_spec()`, that t
+
+### Async/Concurrency Patterns
+
+- [events — In-process async pub/sub event bus for decoupled cross-domain side effects](events-in-process-async-pubsub-event-bus-for-decoupled-cross-domain-side-effects.md) — This module provides a simple in-process publish/subscribe event bus that enable
 
 ### Authentication & Authorization
 
-- [license — Enterprise license validation for cloud features](license-enterprise-license-validation-for-cloud-features.md) — Validates Ed25519-signed license keys for enterprise feature gating in cloud dep
+- [auth/__init__ — Central re-export hub for authentication and user management](authinit-central-re-export-hub-for-authentication-and-user-management.md) — This module serves as the public API facade for the entire authentication domain
+- [AuthService: Business Logic Layer for Authentication and User Profile Management](authservice-business-logic-layer-for-authentication-and-user-profile-management.md) — AuthService is a stateless FastAPI service that encapsulates authentication and 
+- [deps — FastAPI dependency injection layer for cloud router authentication and authorization](deps-fastapi-dependency-injection-layer-for-cloud-router-authentication-and-auth.md) — This module provides FastAPI dependency functions that extract and validate user
+
+### Backend Service Architecture
+
+- [Workspace Domain Service - Business Logic for Enterprise Cloud](untitled.md) — A stateless service layer that encapsulates workspace business logic including C
+
+### Business Logic Layer
+
+- [AuthService: Business Logic Layer for Authentication and User Profile Management](authservice-business-logic-layer-for-authentication-and-user-profile-management.md) — AuthService is a stateless FastAPI service that encapsulates authentication and 
+
+### CRUD
+
+- [pocket — Data models for Pocket workspaces with widgets, teams, and collaborative agents](pocket-data-models-for-pocket-workspaces-with-widgets-teams-and-collaborative-ag.md) — This module defines the core document models (Pocket, Widget, WidgetPosition) th
 
 ### CRUD operations
 
-- [AgentService — Agent domain business logic](agentservice-agent-domain-business-logic.md) — Stateless service module encapsulating agent CRUD operations and discovery logic
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
-- [message_service — Message business logic and CRUD operations](messageservice-message-business-logic-and-crud-operations.md) — Stateless service providing comprehensive message operations including sending, 
-- [SessionService — Session business logic and CRUD operations](sessionservice-session-business-logic-and-crud-operations.md) — Encapsulates stateless business logic for managing user sessions in the cloud wo
+- [router — FastAPI authentication endpoints and user profile management](router-fastapi-authentication-endpoints-and-user-profile-management.md) — This module exposes HTTP endpoints for user authentication, registration, profil
+- [schemas — Pydantic request/response contracts for session lifecycle operations](schemas-pydantic-requestresponse-contracts-for-session-lifecycle-operations.md) — This module defines the HTTP API contracts (request bodies and response payloads
 
-### Chat Domain
+### CRUD schema definition
 
-- [router — Chat REST API & WebSocket endpoints](router-chat-rest-api-websocket-endpoints.md) — Provides FastAPI routes and WebSocket handler for enterprise chat functionality.
+- [schemas — Pydantic request/response models for agent lifecycle and discovery operations](schemas-pydantic-requestresponse-models-for-agent-lifecycle-and-discovery-operat.md) — This module defines four Pydantic BaseModel classes that serve as the contract l
+
+### Chat & Messaging
+
+- [message — Data model for group chat messages with mentions, reactions, and threading support](message-data-model-for-group-chat-messages-with-mentions-reactions-and-threading.md) — This module defines the Pydantic data models that represent chat messages in gro
+
+### Cloud Domain — Orchestration
+
+- [ee.cloud.__init__ — Cloud domain orchestration and FastAPI application bootstrap](eecloudinit-cloud-domain-orchestration-and-fastapi-application-bootstrap.md) — This module is the entry point for PocketPaw's enterprise cloud layer. It bootst
 
 ### Cloud Infrastructure
 
-- [Cloud Models __init__ — Beanie document model re-exports](cloud-models-init-beanie-document-model-re-exports.md) — Central re-export module that aggregates all cloud document models for Beanie OD
-- [invite — Workspace membership invitation management](invite-workspace-membership-invitation-management.md) — This module defines the Invite document model for managing workspace membership 
-- [Sessions Router — FastAPI endpoint handler for session management](sessions-router-fastapi-endpoint-handler-for-session-management.md) — This module defines the FastAPI router for the Sessions domain, exposing RESTful
+- [Cloud Document Models Re-export Hub for Beanie ODM](eecloudmodelsinit-central-re-export-hub-for-beanie-odm-document-definitions.md) — This module serves as a central re-export point for Beanie ODM document definiti
 
-### Cloud Platform
+### Collaboration Features
 
-- [license — Enterprise license validation for cloud features](license-enterprise-license-validation-for-cloud-features.md) — Validates Ed25519-signed license keys for enterprise feature gating in cloud dep
+- [comment — Threaded comments on pockets and widgets with workspace isolation](comment-threaded-comments-on-pockets-and-widgets-with-workspace-isolation.md) — This module defines the data models for a collaborative commenting system that e
 
-### Cloud Services
+### Core Domain Model
 
-- [router — FastAPI endpoints for agent management and knowledge operations](router-fastapi-endpoints-for-agent-management-and-knowledge-operations.md) — This module defines the FastAPI router for the Agents domain, exposing REST API 
+- [comment — Threaded comments on pockets and widgets with workspace isolation](comment-threaded-comments-on-pockets-and-widgets-with-workspace-isolation.md) — This module defines the data models for a collaborative commenting system that e
 
-### Data Models
+### Cross-Domain Communication
 
-- [Cloud Models __init__ — Beanie document model re-exports](cloud-models-init-beanie-document-model-re-exports.md) — Central re-export module that aggregates all cloud document models for Beanie OD
-- [invite — Workspace membership invitation management](invite-workspace-membership-invitation-management.md) — This module defines the Invite document model for managing workspace membership 
+- [events — In-process async pub/sub event bus for decoupled cross-domain side effects](events-in-process-async-pubsub-event-bus-for-decoupled-cross-domain-side-effects.md) — This module provides a simple in-process publish/subscribe event bus that enable
 
-### Database Layer
+### Data Model / Persistence
 
-- [Cloud Models __init__ — Beanie document model re-exports](cloud-models-init-beanie-document-model-re-exports.md) — Central re-export module that aggregates all cloud document models for Beanie OD
+- [comment — Threaded comments on pockets and widgets with workspace isolation](comment-threaded-comments-on-pockets-and-widgets-with-workspace-isolation.md) — This module defines the data models for a collaborative commenting system that e
+- [notification — In-app notification data model and persistence for user workspace events](notification-in-app-notification-data-model-and-persistence-for-user-workspace-e.md) — This module defines the data models for in-app notifications that inform users a
+
+### Data Model Layer
+
+- [message — Data model for group chat messages with mentions, reactions, and threading support](message-data-model-for-group-chat-messages-with-mentions-reactions-and-threading.md) — This module defines the Pydantic data models that represent chat messages in gro
+
+### Data Transformation & Normalization
+
+- [ripple_normalizer — Normalizes AI-generated pocket specifications into a consistent, persistence-ready format](ripplenormalizer-normalizes-ai-generated-pocket-specifications-into-a-consistent.md) — This module provides a single public function, `normalize_ripple_spec()`, that t
+
+### Database Models
+
+- [Cloud Document Models Re-export Hub for Beanie ODM](eecloudmodelsinit-central-re-export-hub-for-beanie-odm-document-definitions.md) — This module serves as a central re-export point for Beanie ODM document definiti
+
+### Domain Model
+
+- [message — Data model for group chat messages with mentions, reactions, and threading support](message-data-model-for-group-chat-messages-with-mentions-reactions-and-threading.md) — This module defines the Pydantic data models that represent chat messages in gro
+
+### Enterprise Edition (EE) Architecture
+
+- [Cloud Document Models Re-export Hub for Beanie ODM](eecloudmodelsinit-central-re-export-hub-for-beanie-odm-document-definitions.md) — This module serves as a central re-export point for Beanie ODM document definiti
+
+### Enterprise Edition Cloud Infrastructure
+
+- [ee/cloud/kb/__init__ — Knowledge Base Domain Package Initialization and Endpoint Exposure](eecloudkbinit-knowledge-base-domain-package-initialization-and-endpoint-exposure.md) — This module serves as the entry point for the Knowledge Base (KB) domain within 
 
 ### Enterprise Features
 
-- [license — Enterprise license validation for cloud features](license-enterprise-license-validation-for-cloud-features.md) — Validates Ed25519-signed license keys for enterprise feature gating in cloud dep
-- [router — Chat REST API & WebSocket endpoints](router-chat-rest-api-websocket-endpoints.md) — Provides FastAPI routes and WebSocket handler for enterprise chat functionality.
+- [ee.cloud.workspace — Router re-export for FastAPI workspace endpoints](eecloudworkspace-router-re-export-for-fastapi-workspace-endpoints.md) — This module serves as the public entry point for the workspace domain's FastAPI 
 
-### FastAPI Endpoints
+### Enterprise SaaS
 
-- [router — FastAPI endpoints for agent management and knowledge operations](router-fastapi-endpoints-for-agent-management-and-knowledge-operations.md) — This module defines the FastAPI router for the Agents domain, exposing REST API 
+- [Workspace Domain Service - Business Logic for Enterprise Cloud](untitled.md) — A stateless service layer that encapsulates workspace business logic including C
 
-### Knowledge Management
+### Enterprise cloud features
 
-- [router — FastAPI endpoints for agent management and knowledge operations](router-fastapi-endpoints-for-agent-management-and-knowledge-operations.md) — This module defines the FastAPI router for the Agents domain, exposing REST API 
+- [ee.cloud.sessions — Entry point and router export for session management APIs](eecloudsessions-entry-point-and-router-export-for-session-management-apis.md) — This module serves as the public API entry point for the sessions package, expor
 
-### LLM adapters
+### Error Handling & Global Middleware
 
-- [backend_adapter — LLM backend adapter for knowledge base compilation](backendadapter-llm-backend-adapter-for-knowledge-base-compilation.md) — Provides a bridge between PocketPaw's agent registry and the knowledge_base comp
+- [ee.cloud.__init__ — Cloud domain orchestration and FastAPI application bootstrap](eecloudinit-cloud-domain-orchestration-and-fastapi-application-bootstrap.md) — This module is the entry point for PocketPaw's enterprise cloud layer. It bootst
 
-### Licensing
+### Event-Driven Architecture
 
-- [license — Enterprise license validation for cloud features](license-enterprise-license-validation-for-cloud-features.md) — Validates Ed25519-signed license keys for enterprise feature gating in cloud dep
+- [ee.cloud.__init__ — Cloud domain orchestration and FastAPI application bootstrap](eecloudinit-cloud-domain-orchestration-and-fastapi-application-bootstrap.md) — This module is the entry point for PocketPaw's enterprise cloud layer. It bootst
+- [events — In-process async pub/sub event bus for decoupled cross-domain side effects](events-in-process-async-pubsub-event-bus-for-decoupled-cross-domain-side-effects.md) — This module provides a simple in-process publish/subscribe event bus that enable
+- [notification — In-app notification data model and persistence for user workspace events](notification-in-app-notification-data-model-and-persistence-for-user-workspace-e.md) — This module defines the data models for in-app notifications that inform users a
 
-### MongoDB schemas
+### Facade & Re-export Pattern
 
-- [pocket — Pocket workspace and widget document models](pocket-pocket-workspace-and-widget-document-models.md) — Defines MongoDB document models for Pocket workspaces and embedded Widget subdoc
+- [auth/__init__ — Central re-export hub for authentication and user management](authinit-central-re-export-hub-for-authentication-and-user-management.md) — This module serves as the public API facade for the entire authentication domain
 
-### MongoDB/Beanie
+### FastAPI HTTP endpoints
 
-- [notification — In-app notification data model](notification-in-app-notification-data-model.md) — Defines the data models for in-app notifications in the pocketPaw system. Provid
+- [router — FastAPI authentication endpoints and user profile management](router-fastapi-authentication-endpoints-and-user-profile-management.md) — This module exposes HTTP endpoints for user authentication, registration, profil
 
-### ODM/ORM
+### FastAPI Middleware & Dependency Injection
 
-- [Cloud Models __init__ — Beanie document model re-exports](cloud-models-init-beanie-document-model-re-exports.md) — Central re-export module that aggregates all cloud document models for Beanie OD
+- [deps — FastAPI dependency injection layer for cloud router authentication and authorization](deps-fastapi-dependency-injection-layer-for-cloud-router-authentication-and-auth.md) — This module provides FastAPI dependency functions that extract and validate user
 
-### REST API
+### FastAPI application architecture
 
-- [router — Chat REST API & WebSocket endpoints](router-chat-rest-api-websocket-endpoints.md) — Provides FastAPI routes and WebSocket handler for enterprise chat functionality.
+- [ee.cloud.agents — Package initialization and router export for enterprise cloud agent functionality](eecloudagents-package-initialization-and-router-export-for-enterprise-cloud-agen.md) — This is a minimal package initialization module that serves as the public API en
 
-### REST Endpoints
+### FastAPI integration
 
-- [Sessions Router — FastAPI endpoint handler for session management](sessions-router-fastapi-endpoint-handler-for-session-management.md) — This module defines the FastAPI router for the Sessions domain, exposing RESTful
+- [license — Enterprise license validation and feature gating for cloud deployments](license-enterprise-license-validation-and-feature-gating-for-cloud-deployments.md) — This module provides cryptographic validation of signed license keys, caching of
 
-### Real-time Communication
+### HTTP validation layer
 
-- [router — Chat REST API & WebSocket endpoints](router-chat-rest-api-websocket-endpoints.md) — Provides FastAPI routes and WebSocket handler for enterprise chat functionality.
+- [schemas — Pydantic models for authentication request/response validation](schemas-pydantic-models-for-authentication-requestresponse-validation.md) — This module defines three Pydantic BaseModel classes that standardize the shape 
 
-### Sessions Domain
+### Infrastructure Layer — Lifecycle Management
 
-- [Sessions Router — FastAPI endpoint handler for session management](sessions-router-fastapi-endpoint-handler-for-session-management.md) — This module defines the FastAPI router for the Sessions domain, exposing RESTful
+- [ee.cloud.__init__ — Cloud domain orchestration and FastAPI application bootstrap](eecloudinit-cloud-domain-orchestration-and-fastapi-application-bootstrap.md) — This module is the entry point for PocketPaw's enterprise cloud layer. It bootst
 
-### WebSocket
+### Infrastructure/Foundation
 
-- [router — Chat REST API & WebSocket endpoints](router-chat-rest-api-websocket-endpoints.md) — Provides FastAPI routes and WebSocket handler for enterprise chat functionality.
-- [ws — WebSocket connection manager for real-time chat](ws-websocket-connection-manager-for-real-time-chat.md) — Manages WebSocket lifecycle, user presence tracking, and message routing for rea
+- [events — In-process async pub/sub event bus for decoupled cross-domain side effects](events-in-process-async-pubsub-event-bus-for-decoupled-cross-domain-side-effects.md) — This module provides a simple in-process publish/subscribe event bus that enable
 
-### Workspace Management
+### Knowledge Base — Integration Layer
 
-- [invite — Workspace membership invitation management](invite-workspace-membership-invitation-management.md) — This module defines the Invite document model for managing workspace membership 
+- [backend_adapter — Adapter that makes PocketPaw's agent backends usable as knowledge base CompilerBackends](backendadapter-adapter-that-makes-pocketpaws-agent-backends-usable-as-knowledge.md) — This module provides `PocketPawCompilerBackend`, an adapter class that implement
 
-### access control
+### Knowledge Management Domain
 
-- [permissions — Role and access-level permission checks](permissions-role-and-access-level-permission-checks.md) — Provides enum hierarchies for workspace roles and pocket access levels with corr
-- [permissions — Role and access-level permission guards](permissions-role-and-access-level-permission-guards.md) — Defines hierarchical enums for workspace roles and pocket access levels, each wi
-- [Pockets Router — FastAPI endpoint definitions for pocket management](pockets-router-fastapi-endpoint-definitions-for-pocket-management.md) — FastAPI router module that exposes RESTful API endpoints for the Pockets domain,
-- [PocketService — Business Logic for Pocket Management](pocketservice-business-logic-for-pocket-management.md) — Stateless service encapsulating all business logic for pockets (customizable das
-- [workspace/service — Workspace domain business logic service](workspaceservice-workspace-domain-business-logic-service.md) — Stateless service layer encapsulating all workspace business logic including CRU
-- [WorkspaceService — Workspace domain business logic](workspaceservice-workspace-domain-business-logic.md) — Core service module that implements workspace CRUD operations, member management
+- [ee/cloud/kb/__init__ — Knowledge Base Domain Package Initialization and Endpoint Exposure](eecloudkbinit-knowledge-base-domain-package-initialization-and-endpoint-exposure.md) — This module serves as the entry point for the Knowledge Base (KB) domain within 
 
-### agent infrastructure
+### LLM Backend Abstraction
 
-- [backend_adapter — LLM backend adapter for knowledge base compilation](backendadapter-llm-backend-adapter-for-knowledge-base-compilation.md) — Provides a bridge between PocketPaw's agent registry and the knowledge_base comp
+- [backend_adapter — Adapter that makes PocketPaw's agent backends usable as knowledge base CompilerBackends](backendadapter-adapter-that-makes-pocketpaws-agent-backends-usable-as-knowledge.md) — This module provides `PocketPawCompilerBackend`, an adapter class that implement
+
+### Module Architecture / Facade Pattern
+
+- [ee.cloud.workspace — Router re-export for FastAPI workspace endpoints](eecloudworkspace-router-re-export-for-fastapi-workspace-endpoints.md) — This module serves as the public entry point for the workspace domain's FastAPI 
+
+### MongoDB / Beanie
+
+- [file — Cloud storage metadata document for managing file references](file-cloud-storage-metadata-document-for-managing-file-references.md) — This module defines the `FileObj` document model that stores metadata about file
+
+### MongoDB document
+
+- [agent — Agent configuration and metadata storage for workspace-scoped AI agents](agent-agent-configuration-and-metadata-storage-for-workspace-scoped-ai-agents.md) — This module defines the data models for storing agent configurations in the OCEA
+
+### MongoDB persistence
+
+- [base — Foundational document model with automatic timestamp management for MongoDB persistence](base-foundational-document-model-with-automatic-timestamp-management-for-mongodb.md) — This module provides `TimestampedDocument`, a base class that extends Beanie's O
+- [session — Cloud-tracked chat session document model for pocket-scoped conversations](session-cloud-tracked-chat-session-document-model-for-pocket-scoped-conversation.md) — The session module defines the Session document model that represents individual
+- [workspace — Data model for organization workspaces in multi-tenant enterprise deployments](workspace-data-model-for-organization-workspaces-in-multi-tenant-enterprise-depl.md) — This module defines the core data models that represent a workspace: the contain
+
+### MongoDB/Beanie Persistence
+
+- [message — Data model for group chat messages with mentions, reactions, and threading support](message-data-model-for-group-chat-messages-with-mentions-reactions-and-threading.md) — This module defines the Pydantic data models that represent chat messages in gro
+
+### MongoDB/Beanie — database technology and ORM layer
+
+- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — This module defines the data models for chat groups/channels that support multip
+
+### Multi-Tenant Access Control
+
+- [deps — FastAPI dependency injection layer for cloud router authentication and authorization](deps-fastapi-dependency-injection-layer-for-cloud-router-authentication-and-auth.md) — This module provides FastAPI dependency functions that extract and validate user
+
+### Multi-tenant Architecture
+
+- [comment — Threaded comments on pockets and widgets with workspace isolation](comment-threaded-comments-on-pockets-and-widgets-with-workspace-isolation.md) — This module defines the data models for a collaborative commenting system that e
+
+### Notification / User Communication
+
+- [notification — In-app notification data model and persistence for user workspace events](notification-in-app-notification-data-model-and-persistence-for-user-workspace-e.md) — This module defines the data models for in-app notifications that inform users a
+
+### ODM integration
+
+- [db — MongoDB connection and Beanie ODM lifecycle management for PocketPaw cloud infrastructure](db-mongodb-connection-and-beanie-odm-lifecycle-management-for-pocketpaw-cloud-in.md) — This module provides a centralized, application-level abstraction for managing M
+
+### Package structure and organization
+
+- [ee.cloud.sessions — Entry point and router export for session management APIs](eecloudsessions-entry-point-and-router-export-for-session-management-apis.md) — This module serves as the public API entry point for the sessions package, expor
+
+### Pydantic DTOs
+
+- [schemas — Pydantic request/response data models for workspace domain operations](schemas-pydantic-requestresponse-data-models-for-workspace-domain-operations.md) — This module defines the contract between the workspace API layer and its consume
+
+### Security Infrastructure
+
+- [auth/__init__ — Central re-export hub for authentication and user management](authinit-central-re-export-hub-for-authentication-and-user-management.md) — This module serves as the public API facade for the entire authentication domain
+
+### Session management domain
+
+- [ee.cloud.sessions — Entry point and router export for session management APIs](eecloudsessions-entry-point-and-router-export-for-session-management-apis.md) — This module serves as the public API entry point for the sessions package, expor
+
+### Specification Management
+
+- [ripple_normalizer — Normalizes AI-generated pocket specifications into a consistent, persistence-ready format](ripplenormalizer-normalizes-ai-generated-pocket-specifications-into-a-consistent.md) — This module provides a single public function, `normalize_ripple_spec()`, that t
+
+### User Management
+
+- [AuthService: Business Logic Layer for Authentication and User Profile Management](authservice-business-logic-layer-for-authentication-and-user-profile-management.md) — AuthService is a stateless FastAPI service that encapsulates authentication and 
+
+### Utility & Infrastructure
+
+- [ripple_normalizer — Normalizes AI-generated pocket specifications into a consistent, persistence-ready format](ripplenormalizer-normalizes-ai-generated-pocket-specifications-into-a-consistent.md) — This module provides a single public function, `normalize_ripple_spec()`, that t
+
+### Workspace / Multi-tenancy
+
+- [notification — In-app notification data model and persistence for user workspace events](notification-in-app-notification-data-model-and-persistence-for-user-workspace-e.md) — This module defines the data models for in-app notifications that inform users a
+
+### Workspace Domain
+
+- [ee.cloud.workspace — Router re-export for FastAPI workspace endpoints](eecloudworkspace-router-re-export-for-fastapi-workspace-endpoints.md) — This module serves as the public entry point for the workspace domain's FastAPI 
+
+### Workspace-Scoped Feature
+
+- [ee/cloud/kb/__init__ — Knowledge Base Domain Package Initialization and Endpoint Exposure](eecloudkbinit-knowledge-base-domain-package-initialization-and-endpoint-exposure.md) — This module serves as the entry point for the Knowledge Base (KB) domain within 
 
 ### agent management
 
-- [agent — Agent configuration models for the cloud platform](agent-agent-configuration-models-for-the-cloud-platform.md) — This module defines data models for agent configuration in the PocketPaw cloud s
-- [AgentService — Agent domain business logic](agentservice-agent-domain-business-logic.md) — Stateless service module encapsulating agent CRUD operations and discovery logic
-- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — Defines data models for group/channel entities that support multi-user collabora
-
-### agent orchestration
-
-- [agent_bridge — Bridge between cloud chat events and the PocketPaw agent pool](agentbridge-bridge-between-cloud-chat-events-and-the-pocketpaw-agent-pool.md) — Orchestrates agent responses in group chats by listening to message events, eval
-
-### agent services
-
-- [knowledge — Agent-scoped knowledge base service](knowledge-agent-scoped-knowledge-base-service.md) — Thin wrapper over the standalone knowledge_base package that provides agent-scop
-
-### agent-framework
-
-- [agent_bridge — Cloud chat event bridge to PocketPaw agent pool](agentbridge-cloud-chat-event-bridge-to-pocketpaw-agent-pool.md) — Orchestrates the bridge between cloud chat events and the PocketPaw agent pool, 
-
-### agents
-
-- [agents/__init__.py — Router initialization and re-export](agentsinitpy-router-initialization-and-re-export.md) — This module serves as the package initialization file for the cloud agents subsy
+- [agent — Agent configuration and metadata storage for workspace-scoped AI agents](agent-agent-configuration-and-metadata-storage-for-workspace-scoped-ai-agents.md) — This module defines the data models for storing agent configurations in the OCEA
 
 ### agents domain
 
-- [schemas — Agents domain request/response models](schemas-agents-domain-requestresponse-models.md) — Defines Pydantic request and response schemas for the agents domain. Provides va
+- [schemas — Pydantic request/response models for agent lifecycle and discovery operations](schemas-pydantic-requestresponse-models-for-agent-lifecycle-and-discovery-operat.md) — This module defines four Pydantic BaseModel classes that serve as the contract l
 
-### api initialization
+### application lifecycle
 
-- [ee.cloud.__init__ — Cloud Application Bootstrap & Router Mounting](eecloudinit-cloud-application-bootstrap-router-mounting.md) — This module initializes the PocketPaw Enterprise Cloud FastAPI application by mo
+- [db — MongoDB connection and Beanie ODM lifecycle management for PocketPaw cloud infrastructure](db-mongodb-connection-and-beanie-odm-lifecycle-management-for-pocketpaw-cloud-in.md) — This module provides a centralized, application-level abstraction for managing M
 
-### api routing
+### architectural pattern — facade
 
-- [Pockets Router — FastAPI endpoint definitions for pocket management](pockets-router-fastapi-endpoint-definitions-for-pocket-management.md) — FastAPI router module that exposes RESTful API endpoints for the Pockets domain,
+- [db — Backward compatibility facade for cloud database initialization](db-backward-compatibility-facade-for-cloud-database-initialization.md) — This module is a thin re-export layer that delegates all database functionality 
 
-### api-contracts
+### architectural refactoring
 
-- [schemas — Chat request/response and WebSocket message definitions](schemas-chat-requestresponse-and-websocket-message-definitions.md) — This module defines Pydantic-based request, response, and WebSocket message sche
-- [schemas — Pockets domain request/response schemas](schemas-pockets-domain-requestresponse-schemas.md) — This module defines Pydantic models for request and response validation in the P
+- [service — Chat domain re-export facade for backward compatibility](service-chat-domain-re-export-facade-for-backward-compatibility.md) — This module serves as a thin re-export layer for the chat domain, consolidating 
 
-### api-routing
+### architecture — module organization and facade patterns
 
-- [workspace.router — FastAPI REST router for workspace management](workspacerouter-fastapi-rest-router-for-workspace-management.md) — Defines the FastAPI APIRouter that exposes all workspace-related HTTP endpoints 
+- [__init__ — Facade module exposing shared cross-cutting concerns for the PocketPaw cloud ecosystem](init-facade-module-exposing-shared-cross-cutting-concerns-for-the-pocketpaw-clou.md) — This module serves as the public interface for shared utilities, services, and i
 
-### api-schemas
+### auth domain
 
-- [schemas — Knowledge Base Request/Response Models](schemas-knowledge-base-requestresponse-models.md) — Defines Pydantic request/response schemas for the knowledge base REST API. Provi
-
-### architecture patterns
-
-- [__init__ — Shared cross-cutting concerns for PocketPaw cloud module](init-shared-cross-cutting-concerns-for-pocketpaw-cloud-module.md) — This module serves as the initialization point for the shared utilities and cros
-
-### async patterns
-
-- [events — Internal async event bus for cross-domain side effects](events-internal-async-event-bus-for-cross-domain-side-effects.md) — Provides a simple in-process pub/sub event bus that enables decoupled communicat
+- [schemas — Pydantic models for authentication request/response validation](schemas-pydantic-models-for-authentication-requestresponse-validation.md) — This module defines three Pydantic BaseModel classes that standardize the shape 
 
 ### authentication
 
-- [auth.__init__ — Authentication domain re-exports](authinit-authentication-domain-re-exports.md) — This module serves as the public API entry point for the authentication domain, 
-- [AuthService — Auth domain business logic](authservice-auth-domain-business-logic.md) — Stateless service that encapsulates authentication and user profile management b
-- [core — Enterprise authentication with FastAPI-Users, JWT, and multi-transport](core-enterprise-authentication-with-fastapi-users-jwt-and-multi-transport.md) — Implements enterprise-grade authentication for PocketPaw using fastapi-users wit
-- [deps — FastAPI dependency injection for authentication and authorization](deps-fastapi-dependency-injection-for-authentication-and-authorization.md) — Provides reusable FastAPI dependencies that extract authenticated user informati
-- [deps — FastAPI dependency injection for cloud authentication and authorization](deps-fastapi-dependency-injection-for-cloud-authentication-and-authorization.md) — Provides reusable FastAPI dependency functions for extracting and validating use
-- [router — Auth domain FastAPI endpoint definitions](router-auth-domain-fastapi-endpoint-definitions.md) — Defines FastAPI routes for authentication operations including login, logout, re
-- [schemas — Auth domain request/response data models](schemas-auth-domain-requestresponse-data-models.md) — Defines Pydantic request and response schemas for authentication operations in t
-- [user — Enterprise user and OAuth account models](user-enterprise-user-and-oauth-account-models.md) — Defines the core user domain model for the PocketPaw system, integrating fastapi
-- [workspace.router — FastAPI REST router for workspace management](workspacerouter-fastapi-rest-router-for-workspace-management.md) — Defines the FastAPI APIRouter that exposes all workspace-related HTTP endpoints 
+- [core — Enterprise JWT authentication with cookie and bearer transport for FastAPI](core-enterprise-jwt-authentication-with-cookie-and-bearer-transport-for-fastapi.md) — This module implements a complete authentication system for PocketPaw using fast
+- [router — FastAPI authentication endpoints and user profile management](router-fastapi-authentication-endpoints-and-user-profile-management.md) — This module exposes HTTP endpoints for user authentication, registration, profil
 
 ### authorization
 
-- [deps — FastAPI dependency injection for authentication and authorization](deps-fastapi-dependency-injection-for-authentication-and-authorization.md) — Provides reusable FastAPI dependencies that extract authenticated user informati
-- [deps — FastAPI dependency injection for cloud authentication and authorization](deps-fastapi-dependency-injection-for-cloud-authentication-and-authorization.md) — Provides reusable FastAPI dependency functions for extracting and validating use
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
-- [message_service — Message business logic and CRUD operations](messageservice-message-business-logic-and-crud-operations.md) — Stateless service providing comprehensive message operations including sending, 
-- [permissions — Role and access-level permission checks](permissions-role-and-access-level-permission-checks.md) — Provides enum hierarchies for workspace roles and pocket access levels with corr
-- [permissions — Role and access-level permission guards](permissions-role-and-access-level-permission-guards.md) — Defines hierarchical enums for workspace roles and pocket access levels, each wi
+- [core — Enterprise JWT authentication with cookie and bearer transport for FastAPI](core-enterprise-jwt-authentication-with-cookie-and-bearer-transport-for-fastapi.md) — This module implements a complete authentication system for PocketPaw using fast
 
-### backend
+### authorization & access control
 
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
+- [license — Enterprise license validation and feature gating for cloud deployments](license-enterprise-license-validation-and-feature-gating-for-cloud-deployments.md) — This module provides cryptographic validation of signed license keys, caching of
 
-### backend integration
+### backward compatibility
 
-- [backend_adapter — LLM backend adapter for knowledge base compilation](backendadapter-llm-backend-adapter-for-knowledge-base-compilation.md) — Provides a bridge between PocketPaw's agent registry and the knowledge_base comp
+- [service — Chat domain re-export facade for backward compatibility](service-chat-domain-re-export-facade-for-backward-compatibility.md) — This module serves as a thin re-export layer for the chat domain, consolidating 
 
-### business logic
+### chat / messaging
 
-- [AgentService — Agent domain business logic](agentservice-agent-domain-business-logic.md) — Stateless service module encapsulating agent CRUD operations and discovery logic
-- [AuthService — Auth domain business logic](authservice-auth-domain-business-logic.md) — Stateless service that encapsulates authentication and user profile management b
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
-- [message_service — Message business logic and CRUD operations](messageservice-message-business-logic-and-crud-operations.md) — Stateless service providing comprehensive message operations including sending, 
-- [PocketService — Business Logic for Pocket Management](pocketservice-business-logic-for-pocket-management.md) — Stateless service encapsulating all business logic for pockets (customizable das
-- [SessionService — Session business logic and CRUD operations](sessionservice-session-business-logic-and-crud-operations.md) — Encapsulates stateless business logic for managing user sessions in the cloud wo
-
-### business logic service
-
-- [workspace/service — Workspace domain business logic service](workspaceservice-workspace-domain-business-logic-service.md) — Stateless service layer encapsulating all workspace business logic including CRU
-- [WorkspaceService — Workspace domain business logic](workspaceservice-workspace-domain-business-logic.md) — Core service module that implements workspace CRUD operations, member management
-
-### chat
-
-- [schemas — Chat request/response and WebSocket message definitions](schemas-chat-requestresponse-and-websocket-message-definitions.md) — This module defines Pydantic-based request, response, and WebSocket message sche
+- [session — Cloud-tracked chat session document model for pocket-scoped conversations](session-cloud-tracked-chat-session-document-model-for-pocket-scoped-conversation.md) — The session module defines the Session document model that represents individual
 
 ### chat domain
 
-- [chat.__init__ — Chat domain entry point for groups, messages, and WebSocket real-time communication](chatinit-chat-domain-entry-point-for-groups-messages-and-websocket-real-time-com.md) — This module serves as the entry point for the chat domain, exposing the router f
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
-- [message_service — Message business logic and CRUD operations](messageservice-message-business-logic-and-crud-operations.md) — Stateless service providing comprehensive message operations including sending, 
-- [service — Chat domain re-export module for backward compatibility](service-chat-domain-re-export-module-for-backward-compatibility.md) — A thin re-export module that provides backward-compatible access to chat domain 
+- [chat/__init__.py — Entry point for chat domain with groups, messages, and WebSocket real-time capabilities](chatinitpy-entry-point-for-chat-domain-with-groups-messages-and-websocket-real-t.md) — This module serves as the public API gateway for the chat domain, re-exporting t
+- [service — Chat domain re-export facade for backward compatibility](service-chat-domain-re-export-facade-for-backward-compatibility.md) — This module serves as a thin re-export layer for the chat domain, consolidating 
 
-### chat infrastructure
+### chat/collaboration — domain area for group conversations
 
-- [ws — WebSocket connection manager for real-time chat](ws-websocket-connection-manager-for-real-time-chat.md) — Manages WebSocket lifecycle, user presence tracking, and message routing for rea
-
-### chat-domain
-
-- [session — Chat session document model](session-chat-session-document-model.md) — Defines the Session document model for tracking pocket-scoped chat sessions in t
-
-### cloud backend
-
-- [db — MongoDB Connection and Beanie ODM Initialization](db-mongodb-connection-and-beanie-odm-initialization.md) — This module manages MongoDB connectivity and Beanie ODM initialization for the p
-- [knowledge — Agent-scoped knowledge base service](knowledge-agent-scoped-knowledge-base-service.md) — Thin wrapper over the standalone knowledge_base package that provides agent-scop
-
-### cloud infrastructure
-
-- [agent_bridge — Bridge between cloud chat events and the PocketPaw agent pool](agentbridge-bridge-between-cloud-chat-events-and-the-pocketpaw-agent-pool.md) — Orchestrates agent responses in group chats by listening to message events, eval
-- [db — Cloud Database Initialization and Client Management](db-cloud-database-initialization-and-client-management.md) — A backward compatibility module that re-exports database initialization and clie
-- [deps — FastAPI dependency injection for cloud authentication and authorization](deps-fastapi-dependency-injection-for-cloud-authentication-and-authorization.md) — Provides reusable FastAPI dependency functions for extracting and validating use
-- [ee.cloud.__init__ — Cloud Application Bootstrap & Router Mounting](eecloudinit-cloud-application-bootstrap-router-mounting.md) — This module initializes the PocketPaw Enterprise Cloud FastAPI application by mo
-- [ee.cloud.pockets.__init__ — Router Export Module](eecloudpocketsinit-router-export-module.md) — This module serves as the public API entry point for the pockets package, export
-- [ee.cloud.sessions — Session Management Router Export](eecloudsessions-session-management-router-export.md) — This module serves as the public interface for the sessions package, exporting t
-- [ee.cloud.workspace — Workspace Module Initialization](eecloudworkspace-workspace-module-initialization.md) — Package initialization module for the enterprise workspace subsystem. Exposes th
-- [event_handlers — Cross-domain event handlers for workspace side effects](eventhandlers-cross-domain-event-handlers-for-workspace-side-effects.md) — Provides async event handlers that react to domain events (invites, messages, po
-- [events — Internal async event bus for cross-domain side effects](events-internal-async-event-bus-for-cross-domain-side-effects.md) — Provides a simple in-process pub/sub event bus that enables decoupled communicat
-- [__init__ — Shared cross-cutting concerns for PocketPaw cloud module](init-shared-cross-cutting-concerns-for-pocketpaw-cloud-module.md) — This module serves as the initialization point for the shared utilities and cros
-- [kb/__init__.py — Knowledge Base Domain Package Initialization](kbinitpy-knowledge-base-domain-package-initialization.md) — This module serves as the entry point for the knowledge base (KB) domain package
-- [notification — In-app notification data model](notification-in-app-notification-data-model.md) — Defines the data models for in-app notifications in the pocketPaw system. Provid
-- [permissions — Role and access-level permission checks](permissions-role-and-access-level-permission-checks.md) — Provides enum hierarchies for workspace roles and pocket access levels with corr
-- [permissions — Role and access-level permission guards](permissions-role-and-access-level-permission-guards.md) — Defines hierarchical enums for workspace roles and pocket access levels, each wi
-
-### cloud models
-
-- [agent — Agent configuration models for the cloud platform](agent-agent-configuration-models-for-the-cloud-platform.md) — This module defines data models for agent configuration in the PocketPaw cloud s
-
-### cloud module
-
-- [errors — Unified error hierarchy for cloud module](errors-unified-error-hierarchy-for-cloud-module.md) — Defines a consistent exception hierarchy for the cloud module that replaces raw 
-
-### cloud platform
-
-- [AuthService — Auth domain business logic](authservice-auth-domain-business-logic.md) — Stateless service that encapsulates authentication and user profile management b
-- [workspace — Workspace document model for deployments and organizations](workspace-workspace-document-model-for-deployments-and-organizations.md) — Defines the data model for organization workspaces in enterprise deployments. Ea
-
-### cloud service utilities
-
-- [ripple_normalizer — AI-generated rippleSpec validation and normalization](ripplenormalizer-ai-generated-ripplespec-validation-and-normalization.md) — Normalizes AI-generated rippleSpec objects before persistence by ensuring envelo
-
-### cloud services
-
-- [SessionService — Session business logic and CRUD operations](sessionservice-session-business-logic-and-crud-operations.md) — Encapsulates stateless business logic for managing user sessions in the cloud wo
+- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — This module defines the data models for chat groups/channels that support multip
 
 ### cloud storage
 
-- [file — File metadata document storage](file-file-metadata-document-storage.md) — Defines the FileObj document model for storing file metadata in MongoDB via Bean
+- [file — Cloud storage metadata document for managing file references](file-cloud-storage-metadata-document-for-managing-file-references.md) — This module defines the `FileObj` document model that stores metadata about file
 
-### cloud-agents
+### collaborative features
 
-- [agent_bridge — Cloud chat event bridge to PocketPaw agent pool](agentbridge-cloud-chat-event-bridge-to-pocketpaw-agent-pool.md) — Orchestrates the bridge between cloud chat events and the PocketPaw agent pool, 
-
-### cloud-infrastructure
-
-- [deps — FastAPI dependency injection for authentication and authorization](deps-fastapi-dependency-injection-for-authentication-and-authorization.md) — Provides reusable FastAPI dependencies that extract authenticated user informati
-- [errors — Unified error hierarchy for the cloud module](errors-unified-error-hierarchy-for-the-cloud-module.md) — Defines a consistent exception hierarchy rooted in `CloudError` that replaces ra
-- [message — Group chat message document model](message-group-chat-message-document-model.md) — Defines the data model for chat messages in group conversations, including suppo
-
-### cloud-models
-
-- [session — Chat session document model](session-chat-session-document-model.md) — Defines the Session document model for tracking pocket-scoped chat sessions in t
-
-### collaboration
-
-- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — Defines data models for group/channel entities that support multi-user collabora
-
-### collaboration features
-
-- [comment — Threaded comments on pockets and widgets](comment-threaded-comments-on-pockets-and-widgets.md) — Defines data models for managing threaded comments in the Pocketpaw system. Enab
-- [Pockets Router — FastAPI endpoint definitions for pocket management](pockets-router-fastapi-endpoint-definitions-for-pocket-management.md) — FastAPI router module that exposes RESTful API endpoints for the Pockets domain,
-
-### comments and feedback
-
-- [comment — Threaded comments on pockets and widgets](comment-threaded-comments-on-pockets-and-widgets.md) — Defines data models for managing threaded comments in the Pocketpaw system. Enab
+- [pocket — Data models for Pocket workspaces with widgets, teams, and collaborative agents](pocket-data-models-for-pocket-workspaces-with-widgets-teams-and-collaborative-ag.md) — This module defines the core document models (Pocket, Widget, WidgetPosition) th
 
 ### compatibility layer
 
-- [db — Cloud Database Initialization and Client Management](db-cloud-database-initialization-and-client-management.md) — A backward compatibility module that re-exports database initialization and clie
+- [db — Backward compatibility facade for cloud database initialization](db-backward-compatibility-facade-for-cloud-database-initialization.md) — This module is a thin re-export layer that delegates all database functionality 
 
-### configuration
+### configuration storage
 
-- [agent — Agent configuration models for the cloud platform](agent-agent-configuration-models-for-the-cloud-platform.md) — This module defines data models for agent configuration in the PocketPaw cloud s
+- [agent — Agent configuration and metadata storage for workspace-scoped AI agents](agent-agent-configuration-and-metadata-storage-for-workspace-scoped-ai-agents.md) — This module defines the data models for storing agent configurations in the OCEA
 
-### connection management
+### cross-cutting concerns
 
-- [ws — WebSocket connection manager for real-time chat](ws-websocket-connection-manager-for-real-time-chat.md) — Manages WebSocket lifecycle, user presence tracking, and message routing for rea
+- [base — Foundational document model with automatic timestamp management for MongoDB persistence](base-foundational-document-model-with-automatic-timestamp-management-for-mongodb.md) — This module provides `TimestampedDocument`, a base class that extends Beanie's O
 
-### core infrastructure
+### cross-cutting concerns — auth, errors, events shared across all features
 
-- [base — Timestamped Document Base Class](base-timestamped-document-base-class.md) — Provides a base document class that automatically manages createdAt and updatedA
+- [__init__ — Facade module exposing shared cross-cutting concerns for the PocketPaw cloud ecosystem](init-facade-module-exposing-shared-cross-cutting-concerns-for-the-pocketpaw-clou.md) — This module serves as the public interface for shared utilities, services, and i
 
-### cross-domain coordination
+### data model
 
-- [event_handlers — Cross-domain event processing and notifications](eventhandlers-cross-domain-event-processing-and-notifications.md) — Handles asynchronous side effects that span multiple domains (groups, pockets, n
+- [file — Cloud storage metadata document for managing file references](file-cloud-storage-metadata-document-for-managing-file-references.md) — This module defines the `FileObj` document model that stores metadata about file
+- [schemas — Pydantic request/response models for agent lifecycle and discovery operations](schemas-pydantic-requestresponse-models-for-agent-lifecycle-and-discovery-operat.md) — This module defines four Pydantic BaseModel classes that serve as the contract l
+- [workspace — Data model for organization workspaces in multi-tenant enterprise deployments](workspace-data-model-for-organization-workspaces-in-multi-tenant-enterprise-depl.md) — This module defines the core data models that represent a workspace: the contain
 
-### data models
+### data model / ORM
 
-- [base — Timestamped Document Base Class](base-timestamped-document-base-class.md) — Provides a base document class that automatically manages createdAt and updatedA
-- [comment — Threaded comments on pockets and widgets](comment-threaded-comments-on-pockets-and-widgets.md) — Defines data models for managing threaded comments in the Pocketpaw system. Enab
-- [file — File metadata document storage](file-file-metadata-document-storage.md) — Defines the FileObj document model for storing file metadata in MongoDB via Bean
-- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — Defines data models for group/channel entities that support multi-user collabora
-- [notification — In-app notification data model](notification-in-app-notification-data-model.md) — Defines the data models for in-app notifications in the pocketPaw system. Provid
-- [pocket — Pocket workspace and widget document models](pocket-pocket-workspace-and-widget-document-models.md) — Defines MongoDB document models for Pocket workspaces and embedded Widget subdoc
-- [schemas — Auth domain request/response data models](schemas-auth-domain-requestresponse-data-models.md) — Defines Pydantic request and response schemas for authentication operations in t
-- [schemas — Workspace Domain Request/Response Models](schemas-workspace-domain-requestresponse-models.md) — Defines Pydantic-based request and response schemas for workspace management ope
-- [user — Enterprise user and OAuth account models](user-enterprise-user-and-oauth-account-models.md) — Defines the core user domain model for the PocketPaw system, integrating fastapi
-- [workspace — Workspace document model for deployments and organizations](workspace-workspace-document-model-for-deployments-and-organizations.md) — Defines the data model for organization workspaces in enterprise deployments. Ea
+- [session — Cloud-tracked chat session document model for pocket-scoped conversations](session-cloud-tracked-chat-session-document-model-for-pocket-scoped-conversation.md) — The session module defines the Session document model that represents individual
 
-### data normalization
+### data model / schema
 
-- [ripple_normalizer — AI-generated rippleSpec validation and normalization](ripplenormalizer-ai-generated-ripplespec-validation-and-normalization.md) — Normalizes AI-generated rippleSpec objects before persistence by ensuring envelo
+- [pocket — Data models for Pocket workspaces with widgets, teams, and collaborative agents](pocket-data-models-for-pocket-workspaces-with-widgets-teams-and-collaborative-ag.md) — This module defines the core document models (Pocket, Widget, WidgetPosition) th
+
+### data model layer
+
+- [agent — Agent configuration and metadata storage for workspace-scoped AI agents](agent-agent-configuration-and-metadata-storage-for-workspace-scoped-ai-agents.md) — This module defines the data models for storing agent configurations in the OCEA
+- [base — Foundational document model with automatic timestamp management for MongoDB persistence](base-foundational-document-model-with-automatic-timestamp-management-for-mongodb.md) — This module provides `TimestampedDocument`, a base class that extends Beanie's O
+
+### data model — core persistent entity
+
+- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — This module defines the data models for chat groups/channels that support multip
+
+### data model: ODM document
+
+- [invite — Workspace membership invitation document model](invite-workspace-membership-invitation-document-model.md) — The invite module defines the Invite document class that represents pending work
 
 ### data persistence
 
-- [agent — Agent configuration models for the cloud platform](agent-agent-configuration-models-for-the-cloud-platform.md) — This module defines data models for agent configuration in the PocketPaw cloud s
+- [db — MongoDB connection and Beanie ODM lifecycle management for PocketPaw cloud infrastructure](db-mongodb-connection-and-beanie-odm-lifecycle-management-for-pocketpaw-cloud-in.md) — This module provides a centralized, application-level abstraction for managing M
 
 ### data validation
 
-- [schemas — Agents domain request/response models](schemas-agents-domain-requestresponse-models.md) — Defines Pydantic request and response schemas for the agents domain. Provides va
+- [schemas — Pydantic request/response contracts for session lifecycle operations](schemas-pydantic-requestresponse-contracts-for-session-lifecycle-operations.md) — This module defines the HTTP API contracts (request bodies and response payloads
+- [schemas — Pydantic request/response data models for workspace domain operations](schemas-pydantic-requestresponse-data-models-for-workspace-domain-operations.md) — This module defines the contract between the workspace API layer and its consume
+- [schemas — Request/response data validation for the knowledge base REST API](schemas-requestresponse-data-validation-for-the-knowledge-base-rest-api.md) — This module defines Pydantic request/response schemas for the knowledge base dom
 
-### data-models
+### dependency injection — fastapi and inversion of control
 
-- [message — Group chat message document model](message-group-chat-message-document-model.md) — Defines the data model for chat messages in group conversations, including suppo
+- [__init__ — Facade module exposing shared cross-cutting concerns for the PocketPaw cloud ecosystem](init-facade-module-exposing-shared-cross-cutting-concerns-for-the-pocketpaw-clou.md) — This module serves as the public interface for shared utilities, services, and i
 
-### data-persistence
+### document structure
 
-- [session — Chat session document model](session-chat-session-document-model.md) — Defines the Session document model for tracking pocket-scoped chat sessions in t
+- [pocket — Data models for Pocket workspaces with widgets, teams, and collaborative agents](pocket-data-models-for-pocket-workspaces-with-widgets-teams-and-collaborative-ag.md) — This module defines the core document models (Pocket, Widget, WidgetPosition) th
 
-### data-validation
+### domain: workspace access control
 
-- [schemas — Knowledge Base Request/Response Models](schemas-knowledge-base-requestresponse-models.md) — Defines Pydantic request/response schemas for the knowledge base REST API. Provi
+- [invite — Workspace membership invitation document model](invite-workspace-membership-invitation-document-model.md) — The invite module defines the Invite document class that represents pending work
 
-### database
+### enterprise cloud agents
 
-- [db — Cloud Database Initialization and Client Management](db-cloud-database-initialization-and-client-management.md) — A backward compatibility module that re-exports database initialization and clie
-- [db — MongoDB Connection and Beanie ODM Initialization](db-mongodb-connection-and-beanie-odm-initialization.md) — This module manages MongoDB connectivity and Beanie ODM initialization for the p
+- [ee.cloud.agents — Package initialization and router export for enterprise cloud agent functionality](eecloudagents-package-initialization-and-router-export-for-enterprise-cloud-agen.md) — This is a minimal package initialization module that serves as the public API en
 
-### database layer
+### enterprise cloud platform
 
-- [base — Timestamped Document Base Class](base-timestamped-document-base-class.md) — Provides a base document class that automatically manages createdAt and updatedA
+- [pockets.__init__ — Entry point and public API aggregator for the pockets subsystem](pocketsinit-entry-point-and-public-api-aggregator-for-the-pockets-subsystem.md) — This module serves as the public interface for the enterprise cloud pockets subs
 
-### dependency injection
+### enterprise security
 
-- [deps — FastAPI dependency injection for cloud authentication and authorization](deps-fastapi-dependency-injection-for-cloud-authentication-and-authorization.md) — Provides reusable FastAPI dependency functions for extracting and validating use
-
-### document database
-
-- [pocket — Pocket workspace and widget document models](pocket-pocket-workspace-and-widget-document-models.md) — Defines MongoDB document models for Pocket workspaces and embedded Widget subdoc
-
-### document persistence
-
-- [comment — Threaded comments on pockets and widgets](comment-threaded-comments-on-pockets-and-widgets.md) — Defines data models for managing threaded comments in the Pocketpaw system. Enab
-- [file — File metadata document storage](file-file-metadata-document-storage.md) — Defines the FileObj document model for storing file metadata in MongoDB via Bean
-
-### document-models
-
-- [session — Chat session document model](session-chat-session-document-model.md) — Defines the Session document model for tracking pocket-scoped chat sessions in t
-
-### domain packages
-
-- [kb/__init__.py — Knowledge Base Domain Package Initialization](kbinitpy-knowledge-base-domain-package-initialization.md) — This module serves as the entry point for the knowledge base (KB) domain package
-
-### domain service
-
-- [AgentService — Agent domain business logic](agentservice-agent-domain-business-logic.md) — Stateless service module encapsulating agent CRUD operations and discovery logic
-- [AuthService — Auth domain business logic](authservice-auth-domain-business-logic.md) — Stateless service that encapsulates authentication and user profile management b
-
-### domain-driven design
-
-- [ee.cloud.__init__ — Cloud Application Bootstrap & Router Mounting](eecloudinit-cloud-application-bootstrap-router-mounting.md) — This module initializes the PocketPaw Enterprise Cloud FastAPI application by mo
-
-### domain-schemas
-
-- [schemas — Pockets domain request/response schemas](schemas-pockets-domain-requestresponse-schemas.md) — This module defines Pydantic models for request and response validation in the P
-
-### domain/sessions
-
-- [SessionService — Session business logic and CRUD operations](sessionservice-session-business-logic-and-crud-operations.md) — Encapsulates stateless business logic for managing user sessions in the cloud wo
-
-### domain: pockets
-
-- [PocketService — Business Logic for Pocket Management](pocketservice-business-logic-for-pocket-management.md) — Stateless service encapsulating all business logic for pockets (customizable das
-
-### ee-cloud
-
-- [router — Knowledge Base FastAPI Endpoints](router-knowledge-base-fastapi-endpoints.md) — Provides workspace-scoped REST API endpoints for knowledge base operations inclu
-
-### enterprise
-
-- [core — Enterprise authentication with FastAPI-Users, JWT, and multi-transport](core-enterprise-authentication-with-fastapi-users-jwt-and-multi-transport.md) — Implements enterprise-grade authentication for PocketPaw using fastapi-users wit
-
-### enterprise edition
-
-- [ee.cloud.workspace — Workspace Package Entry Point](eecloudworkspace-workspace-package-entry-point.md) — This is the package initializer for the Enterprise Edition (EE) cloud workspace 
-
-### enterprise features
-
-- [ee.cloud.workspace — Workspace Module Initialization](eecloudworkspace-workspace-module-initialization.md) — Package initialization module for the enterprise workspace subsystem. Exposes th
-- [kb/__init__.py — Knowledge Base Domain Package Initialization](kbinitpy-knowledge-base-domain-package-initialization.md) — This module serves as the entry point for the knowledge base (KB) domain package
-- [workspace — Workspace document model for deployments and organizations](workspace-workspace-document-model-for-deployments-and-organizations.md) — Defines the data model for organization workspaces in enterprise deployments. Ea
-
-### enterprise-licensing
-
-- [workspace.router — FastAPI REST router for workspace management](workspacerouter-fastapi-rest-router-for-workspace-management.md) — Defines the FastAPI APIRouter that exposes all workspace-related HTTP endpoints 
-
-### enterprise/cloud
-
-- [agents/__init__.py — Router initialization and re-export](agentsinitpy-router-initialization-and-re-export.md) — This module serves as the package initialization file for the cloud agents subsy
-
-### error handling
-
-- [errors — Unified error hierarchy for cloud module](errors-unified-error-hierarchy-for-cloud-module.md) — Defines a consistent exception hierarchy for the cloud module that replaces raw 
-
-### error-handling
-
-- [errors — Unified error hierarchy for the cloud module](errors-unified-error-hierarchy-for-the-cloud-module.md) — Defines a consistent exception hierarchy rooted in `CloudError` that replaces ra
-
-### event emission
-
-- [message_service — Message business logic and CRUD operations](messageservice-message-business-logic-and-crud-operations.md) — Stateless service providing comprehensive message operations including sending, 
-
-### event handling
-
-- [event_handlers — Cross-domain event handlers for workspace side effects](eventhandlers-cross-domain-event-handlers-for-workspace-side-effects.md) — Provides async event handlers that react to domain events (invites, messages, po
-
-### event-driven architecture
-
-- [agent_bridge — Bridge between cloud chat events and the PocketPaw agent pool](agentbridge-bridge-between-cloud-chat-events-and-the-pocketpaw-agent-pool.md) — Orchestrates agent responses in group chats by listening to message events, eval
-- [event_handlers — Cross-domain event processing and notifications](eventhandlers-cross-domain-event-processing-and-notifications.md) — Handles asynchronous side effects that span multiple domains (groups, pockets, n
-- [events — Internal async event bus for cross-domain side effects](events-internal-async-event-bus-for-cross-domain-side-effects.md) — Provides a simple in-process pub/sub event bus that enables decoupled communicat
-
-### event-orchestration
-
-- [agent_bridge — Cloud chat event bridge to PocketPaw agent pool](agentbridge-cloud-chat-event-bridge-to-pocketpaw-agent-pool.md) — Orchestrates the bridge between cloud chat events and the PocketPaw agent pool, 
-
-### exceptions
-
-- [errors — Unified error hierarchy for cloud module](errors-unified-error-hierarchy-for-cloud-module.md) — Defines a consistent exception hierarchy for the cloud module that replaces raw 
-
-### fastapi
-
-- [core — Enterprise authentication with FastAPI-Users, JWT, and multi-transport](core-enterprise-authentication-with-fastapi-users-jwt-and-multi-transport.md) — Implements enterprise-grade authentication for PocketPaw using fastapi-users wit
-- [Pockets Router — FastAPI endpoint definitions for pocket management](pockets-router-fastapi-endpoint-definitions-for-pocket-management.md) — FastAPI router module that exposes RESTful API endpoints for the Pockets domain,
-
-### fastapi configuration
-
-- [ee.cloud.__init__ — Cloud Application Bootstrap & Router Mounting](eecloudinit-cloud-application-bootstrap-router-mounting.md) — This module initializes the PocketPaw Enterprise Cloud FastAPI application by mo
-
-### fastapi-dependencies
-
-- [deps — FastAPI dependency injection for authentication and authorization](deps-fastapi-dependency-injection-for-authentication-and-authorization.md) — Provides reusable FastAPI dependencies that extract authenticated user informati
-
-### fastapi-router
-
-- [router — Knowledge Base FastAPI Endpoints](router-knowledge-base-fastapi-endpoints.md) — Provides workspace-scoped REST API endpoints for knowledge base operations inclu
+- [core — Enterprise JWT authentication with cookie and bearer transport for FastAPI](core-enterprise-jwt-authentication-with-cookie-and-bearer-transport-for-fastapi.md) — This module implements a complete authentication system for PocketPaw using fast
 
 ### file management
 
-- [file — File metadata document storage](file-file-metadata-document-storage.md) — Defines the FileObj document model for storing file metadata in MongoDB via Bean
+- [file — Cloud storage metadata document for managing file references](file-cloud-storage-metadata-document-for-managing-file-references.md) — This module defines the `FileObj` document model that stores metadata about file
 
-### group management
+### foundational infrastructure
 
-- [event_handlers — Cross-domain event handlers for workspace side effects](eventhandlers-cross-domain-event-handlers-for-workspace-side-effects.md) — Provides async event handlers that react to domain events (invites, messages, po
-- [event_handlers — Cross-domain event processing and notifications](eventhandlers-cross-domain-event-processing-and-notifications.md) — Handles asynchronous side effects that span multiple domains (groups, pockets, n
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
+- [base — Foundational document model with automatic timestamp management for MongoDB persistence](base-foundational-document-model-with-automatic-timestamp-management-for-mongodb.md) — This module provides `TimestampedDocument`, a base class that extends Beanie's O
 
-### group-chat
+### infrastructure layer
 
-- [message — Group chat message document model](message-group-chat-message-document-model.md) — Defines the data model for chat messages in group conversations, including suppo
+- [db — MongoDB connection and Beanie ODM lifecycle management for PocketPaw cloud infrastructure](db-mongodb-connection-and-beanie-odm-lifecycle-management-for-pocketpaw-cloud-in.md) — This module provides a centralized, application-level abstraction for managing M
 
-### information retrieval
+### infrastructure — cloud database
 
-- [knowledge — Agent-scoped knowledge base service](knowledge-agent-scoped-knowledge-base-service.md) — Thin wrapper over the standalone knowledge_base package that provides agent-scop
+- [db — Backward compatibility facade for cloud database initialization](db-backward-compatibility-facade-for-cloud-database-initialization.md) — This module is a thin re-export layer that delegates all database functionality 
 
-### infrastructure
+### knowledge base domain
 
-- [db — MongoDB Connection and Beanie ODM Initialization](db-mongodb-connection-and-beanie-odm-initialization.md) — This module manages MongoDB connectivity and Beanie ODM initialization for the p
+- [schemas — Request/response data validation for the knowledge base REST API](schemas-requestresponse-data-validation-for-the-knowledge-base-rest-api.md) — This module defines Pydantic request/response schemas for the knowledge base dom
 
-### initialization
+### licensing & commercialization
 
-- [db — Cloud Database Initialization and Client Management](db-cloud-database-initialization-and-client-management.md) — A backward compatibility module that re-exports database initialization and clie
-
-### invitation workflow
-
-- [WorkspaceService — Workspace domain business logic](workspaceservice-workspace-domain-business-logic.md) — Core service module that implements workspace CRUD operations, member management
-
-### invite workflow
-
-- [workspace/service — Workspace domain business logic service](workspaceservice-workspace-domain-business-logic-service.md) — Stateless service layer encapsulating all workspace business logic including CRU
-
-### invite-management
-
-- [workspace.router — FastAPI REST router for workspace management](workspacerouter-fastapi-rest-router-for-workspace-management.md) — Defines the FastAPI APIRouter that exposes all workspace-related HTTP endpoints 
-
-### knowledge base
-
-- [kb/__init__.py — Knowledge Base Domain Package Initialization](kbinitpy-knowledge-base-domain-package-initialization.md) — This module serves as the entry point for the knowledge base (KB) domain package
-
-### knowledge base compilation
-
-- [backend_adapter — LLM backend adapter for knowledge base compilation](backendadapter-llm-backend-adapter-for-knowledge-base-compilation.md) — Provides a bridge between PocketPaw's agent registry and the knowledge_base comp
-
-### knowledge management
-
-- [knowledge — Agent-scoped knowledge base service](knowledge-agent-scoped-knowledge-base-service.md) — Thin wrapper over the standalone knowledge_base package that provides agent-scop
-
-### knowledge-base
-
-- [router — Knowledge Base FastAPI Endpoints](router-knowledge-base-fastapi-endpoints.md) — Provides workspace-scoped REST API endpoints for knowledge base operations inclu
-- [schemas — Knowledge Base Request/Response Models](schemas-knowledge-base-requestresponse-models.md) — Defines Pydantic request/response schemas for the knowledge base REST API. Provi
-
-### member management
-
-- [workspace/service — Workspace domain business logic service](workspaceservice-workspace-domain-business-logic-service.md) — Stateless service layer encapsulating all workspace business logic including CRU
-- [WorkspaceService — Workspace domain business logic](workspaceservice-workspace-domain-business-logic.md) — Core service module that implements workspace CRUD operations, member management
-
-### member-management
-
-- [workspace.router — FastAPI REST router for workspace management](workspacerouter-fastapi-rest-router-for-workspace-management.md) — Defines the FastAPI APIRouter that exposes all workspace-related HTTP endpoints 
-
-### membership management
-
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
-
-### message management
-
-- [message_service — Message business logic and CRUD operations](messageservice-message-business-logic-and-crud-operations.md) — Stateless service providing comprehensive message operations including sending, 
-
-### messaging
-
-- [events — Internal async event bus for cross-domain side effects](events-internal-async-event-bus-for-cross-domain-side-effects.md) — Provides a simple in-process pub/sub event bus that enables decoupled communicat
-- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — Defines data models for group/channel entities that support multi-user collabora
-- [message — Group chat message document model](message-group-chat-message-document-model.md) — Defines the data model for chat messages in group conversations, including suppo
-- [schemas — Chat request/response and WebSocket message definitions](schemas-chat-requestresponse-and-websocket-message-definitions.md) — This module defines Pydantic-based request, response, and WebSocket message sche
+- [license — Enterprise license validation and feature gating for cloud deployments](license-enterprise-license-validation-and-feature-gating-for-cloud-deployments.md) — This module provides cryptographic validation of signed license keys, caching of
 
 ### module initialization
 
-- [__init__ — Shared cross-cutting concerns for PocketPaw cloud module](init-shared-cross-cutting-concerns-for-pocketpaw-cloud-module.md) — This module serves as the initialization point for the shared utilities and cros
-
-### mongodb
-
-- [base — Timestamped Document Base Class](base-timestamped-document-base-class.md) — Provides a base document class that automatically manages createdAt and updatedA
-- [session — Chat session document model](session-chat-session-document-model.md) — Defines the Session document model for tracking pocket-scoped chat sessions in t
+- [chat/__init__.py — Entry point for chat domain with groups, messages, and WebSocket real-time capabilities](chatinitpy-entry-point-for-chat-domain-with-groups-messages-and-websocket-real-t.md) — This module serves as the public API gateway for the chat domain, re-exporting t
 
 ### multi-tenancy
 
-- [user — Enterprise user and OAuth account models](user-enterprise-user-and-oauth-account-models.md) — Defines the core user domain model for the PocketPaw system, integrating fastapi
-- [workspace/service — Workspace domain business logic service](workspaceservice-workspace-domain-business-logic-service.md) — Stateless service layer encapsulating all workspace business logic including CRU
+- [workspace — Data model for organization workspaces in multi-tenant enterprise deployments](workspace-data-model-for-organization-workspaces-in-multi-tenant-enterprise-depl.md) — This module defines the core data models that represent a workspace: the contain
 
-### multi-tenant infrastructure
+### multi-tenancy — workspace scoping and data isolation
 
-- [router — Workspace domain FastAPI endpoints](router-workspace-domain-fastapi-endpoints.md) — Provides REST API endpoints for workspace management in the PocketPaw cloud appl
+- [__init__ — Facade module exposing shared cross-cutting concerns for the PocketPaw cloud ecosystem](init-facade-module-exposing-shared-cross-cutting-concerns-for-the-pocketpaw-clou.md) — This module serves as the public interface for shared utilities, services, and i
 
-### notification system
+### multi-tenant architecture
 
-- [event_handlers — Cross-domain event processing and notifications](eventhandlers-cross-domain-event-processing-and-notifications.md) — Handles asynchronous side effects that span multiple domains (groups, pockets, n
-- [notification — In-app notification data model](notification-in-app-notification-data-model.md) — Defines the data models for in-app notifications in the pocketPaw system. Provid
+- [router — FastAPI authentication endpoints and user profile management](router-fastapi-authentication-endpoints-and-user-profile-management.md) — This module exposes HTTP endpoints for user authentication, registration, profil
 
-### notifications
+### multi-user feature — supports multiple participants with different roles
 
-- [event_handlers — Cross-domain event handlers for workspace side effects](eventhandlers-cross-domain-event-handlers-for-workspace-side-effects.md) — Provides async event handlers that react to domain events (invites, messages, po
-
-### organizational management
-
-- [workspace — Workspace document model for deployments and organizations](workspace-workspace-document-model-for-deployments-and-organizations.md) — Defines the data model for organization workspaces in enterprise deployments. Ea
+- [group — Multi-user chat channels with AI agent participants](group-multi-user-chat-channels-with-ai-agent-participants.md) — This module defines the data models for chat groups/channels that support multip
 
 ### package initialization
 
-- [ee.cloud.pockets.__init__ — Router Export Module](eecloudpocketsinit-router-export-module.md) — This module serves as the public API entry point for the pockets package, export
-- [ee.cloud.sessions — Session Management Router Export](eecloudsessions-session-management-router-export.md) — This module serves as the public interface for the sessions package, exporting t
-- [ee.cloud.workspace — Workspace Package Entry Point](eecloudworkspace-workspace-package-entry-point.md) — This is the package initializer for the Enterprise Edition (EE) cloud workspace 
+- [ee.cloud.agents — Package initialization and router export for enterprise cloud agent functionality](eecloudagents-package-initialization-and-router-export-for-enterprise-cloud-agen.md) — This is a minimal package initialization module that serves as the public API en
 
-### package structure
+### package initialization and namespacing
 
-- [agents/__init__.py — Router initialization and re-export](agentsinitpy-router-initialization-and-re-export.md) — This module serves as the package initialization file for the cloud agents subsy
+- [pockets.__init__ — Entry point and public API aggregator for the pockets subsystem](pocketsinit-entry-point-and-public-api-aggregator-for-the-pockets-subsystem.md) — This module serves as the public interface for the enterprise cloud pockets subs
 
-### permissions system
+### pattern: invitation lifecycle
 
-- [permissions — Role and access-level permission checks](permissions-role-and-access-level-permission-checks.md) — Provides enum hierarchies for workspace roles and pocket access levels with corr
+- [invite — Workspace membership invitation document model](invite-workspace-membership-invitation-document-model.md) — The invite module defines the Invite document class that represents pending work
 
-### personality systems
+### real-time messaging infrastructure
 
-- [agent — Agent configuration models for the cloud platform](agent-agent-configuration-models-for-the-cloud-platform.md) — This module defines data models for agent configuration in the PocketPaw cloud s
+- [chat/__init__.py — Entry point for chat domain with groups, messages, and WebSocket real-time capabilities](chatinitpy-entry-point-for-chat-domain-with-groups-messages-and-websocket-real-t.md) — This module serves as the public API gateway for the chat domain, re-exporting t
 
-### pocket sharing
+### request/response contracts
 
-- [event_handlers — Cross-domain event processing and notifications](eventhandlers-cross-domain-event-processing-and-notifications.md) — Handles asynchronous side effects that span multiple domains (groups, pockets, n
+- [schemas — Request/response data validation for the knowledge base REST API](schemas-requestresponse-data-validation-for-the-knowledge-base-rest-api.md) — This module defines Pydantic request/response schemas for the knowledge base dom
 
-### pocket/dashboard framework
+### schema definition
 
-- [ripple_normalizer — AI-generated rippleSpec validation and normalization](ripplenormalizer-ai-generated-ripplespec-validation-and-normalization.md) — Normalizes AI-generated rippleSpec objects before persistence by ensuring envelo
+- [agent — Agent configuration and metadata storage for workspace-scoped AI agents](agent-agent-configuration-and-metadata-storage-for-workspace-scoped-ai-agents.md) — This module defines the data models for storing agent configurations in the OCEA
+- [schemas — Pydantic request/response data models for workspace domain operations](schemas-pydantic-requestresponse-data-models-for-workspace-domain-operations.md) — This module defines the contract between the workspace API layer and its consume
 
-### pockets domain
+### security & cryptography
 
-- [Pockets Router — FastAPI endpoint definitions for pocket management](pockets-router-fastapi-endpoint-definitions-for-pocket-management.md) — FastAPI router module that exposes RESTful API endpoints for the Pockets domain,
+- [license — Enterprise license validation and feature gating for cloud deployments](license-enterprise-license-validation-and-feature-gating-for-cloud-deployments.md) — This module provides cryptographic validation of signed license keys, caching of
 
-### pockets-domain
+### security: token-based invitations
 
-- [schemas — Pockets domain request/response schemas](schemas-pockets-domain-requestresponse-schemas.md) — This module defines Pydantic models for request and response validation in the P
-
-### real-time chat
-
-- [agent_bridge — Bridge between cloud chat events and the PocketPaw agent pool](agentbridge-bridge-between-cloud-chat-events-and-the-pocketpaw-agent-pool.md) — Orchestrates agent responses in group chats by listening to message events, eval
-
-### real-time communication
-
-- [chat.__init__ — Chat domain entry point for groups, messages, and WebSocket real-time communication](chatinit-chat-domain-entry-point-for-groups-messages-and-websocket-real-time-com.md) — This module serves as the entry point for the chat domain, exposing the router f
-- [ws — WebSocket connection manager for real-time chat](ws-websocket-connection-manager-for-real-time-chat.md) — Manages WebSocket lifecycle, user presence tracking, and message routing for rea
-
-### real-time-communication
-
-- [agent_bridge — Cloud chat event bridge to PocketPaw agent pool](agentbridge-cloud-chat-event-bridge-to-pocketpaw-agent-pool.md) — Orchestrates the bridge between cloud chat events and the PocketPaw agent pool, 
-
-### refactoring
-
-- [service — Chat domain re-export module for backward compatibility](service-chat-domain-re-export-module-for-backward-compatibility.md) — A thin re-export module that provides backward-compatible access to chat domain 
-
-### request-validation
-
-- [schemas — Pockets domain request/response schemas](schemas-pockets-domain-requestresponse-schemas.md) — This module defines Pydantic models for request and response validation in the P
-
-### request/response models
-
-- [schemas — Agents domain request/response models](schemas-agents-domain-requestresponse-models.md) — Defines Pydantic request and response schemas for the agents domain. Provides va
-
-### rest-api
-
-- [schemas — Knowledge Base Request/Response Models](schemas-knowledge-base-requestresponse-models.md) — Defines Pydantic request/response schemas for the knowledge base REST API. Provi
-
-### routing and APIs
-
-- [ee.cloud.workspace — Workspace Module Initialization](eecloudworkspace-workspace-module-initialization.md) — Package initialization module for the enterprise workspace subsystem. Exposes th
-
-### schemas
-
-- [schemas — Chat request/response and WebSocket message definitions](schemas-chat-requestresponse-and-websocket-message-definitions.md) — This module defines Pydantic-based request, response, and WebSocket message sche
-- [schemas — Pydantic request/response schemas for the Workspace domain](schemas-pydantic-requestresponse-schemas-for-the-workspace-domain.md) — Defines the data validation and serialization layer for workspace-related API op
-
-### schemas & validation
-
-- [schemas — Sessions domain request/response models](schemas-sessions-domain-requestresponse-models.md) — Defines Pydantic models for session management operations in the pocketPaw syste
-- [schemas — Workspace Domain Request/Response Models](schemas-workspace-domain-requestresponse-models.md) — Defines Pydantic-based request and response schemas for workspace management ope
-
-### security
-
-- [core — Enterprise authentication with FastAPI-Users, JWT, and multi-transport](core-enterprise-authentication-with-fastapi-users-jwt-and-multi-transport.md) — Implements enterprise-grade authentication for PocketPaw using fastapi-users wit
+- [invite — Workspace membership invitation document model](invite-workspace-membership-invitation-document-model.md) — The invite module defines the Invite document class that represents pending work
 
 ### service layer
 
-- [group_service — Group and channel business logic (CRUD, membership, agents, DMs)](groupservice-group-and-channel-business-logic-crud-membership-agents-dms.md) — Provides stateless service layer for group/channel operations including creation
-- [PocketService — Business Logic for Pocket Management](pocketservice-business-logic-for-pocket-management.md) — Stateless service encapsulating all business logic for pockets (customizable das
-- [service — Chat domain re-export module for backward compatibility](service-chat-domain-re-export-module-for-backward-compatibility.md) — A thin re-export module that provides backward-compatible access to chat domain 
-
-### session management
-
-- [ee.cloud.sessions — Session Management Router Export](eecloudsessions-session-management-router-export.md) — This module serves as the public interface for the sessions package, exporting t
+- [core — Enterprise JWT authentication with cookie and bearer transport for FastAPI](core-enterprise-jwt-authentication-with-cookie-and-bearer-transport-for-fastapi.md) — This module implements a complete authentication system for PocketPaw using fast
+- [service — Chat domain re-export facade for backward compatibility](service-chat-domain-re-export-facade-for-backward-compatibility.md) — This module serves as a thin re-export layer for the chat domain, consolidating 
 
 ### sessions domain
 
-- [schemas — Sessions domain request/response models](schemas-sessions-domain-requestresponse-models.md) — Defines Pydantic models for session management operations in the pocketPaw syste
+- [schemas — Pydantic request/response contracts for session lifecycle operations](schemas-pydantic-requestresponse-contracts-for-session-lifecycle-operations.md) — This module defines the HTTP API contracts (request bodies and response payloads
 
-### shared utilities
+### system-wide contracts
 
-- [__init__ — Shared cross-cutting concerns for PocketPaw cloud module](init-shared-cross-cutting-concerns-for-pocketpaw-cloud-module.md) — This module serves as the initialization point for the shared utilities and cros
+- [schemas — Pydantic models for authentication request/response validation](schemas-pydantic-models-for-authentication-requestresponse-validation.md) — This module defines three Pydantic BaseModel classes that standardize the shape 
 
-### shared-utilities
+### temporal auditing
 
-- [errors — Unified error hierarchy for the cloud module](errors-unified-error-hierarchy-for-the-cloud-module.md) — Defines a consistent exception hierarchy rooted in `CloudError` that replaces ra
+- [base — Foundational document model with automatic timestamp management for MongoDB persistence](base-foundational-document-model-with-automatic-timestamp-management-for-mongodb.md) — This module provides `TimestampedDocument`, a base class that extends Beanie's O
 
-### sharing & collaboration
+### workspace and collaboration domain
 
-- [PocketService — Business Logic for Pocket Management](pocketservice-business-logic-for-pocket-management.md) — Stateless service encapsulating all business logic for pockets (customizable das
-
-### user access control
-
-- [router — Workspace domain FastAPI endpoints](router-workspace-domain-fastapi-endpoints.md) — Provides REST API endpoints for workspace management in the PocketPaw cloud appl
-
-### user management
-
-- [auth.__init__ — Authentication domain re-exports](authinit-authentication-domain-re-exports.md) — This module serves as the public API entry point for the authentication domain, 
-- [AuthService — Auth domain business logic](authservice-auth-domain-business-logic.md) — Stateless service that encapsulates authentication and user profile management b
-- [router — Auth domain FastAPI endpoint definitions](router-auth-domain-fastapi-endpoint-definitions.md) — Defines FastAPI routes for authentication operations including login, logout, re
-- [user — Enterprise user and OAuth account models](user-enterprise-user-and-oauth-account-models.md) — Defines the core user domain model for the PocketPaw system, integrating fastapi
-
-### user-management
-
-- [core — Enterprise authentication with FastAPI-Users, JWT, and multi-transport](core-enterprise-authentication-with-fastapi-users-jwt-and-multi-transport.md) — Implements enterprise-grade authentication for PocketPaw using fastapi-users wit
-
-### validation
-
-- [schemas — Pydantic request/response schemas for the Workspace domain](schemas-pydantic-requestresponse-schemas-for-the-workspace-domain.md) — Defines the data validation and serialization layer for workspace-related API op
-
-### websocket
-
-- [schemas — Chat request/response and WebSocket message definitions](schemas-chat-requestresponse-and-websocket-message-definitions.md) — This module defines Pydantic-based request, response, and WebSocket message sche
-
-### workspace
-
-- [ee.cloud.workspace — Workspace Package Entry Point](eecloudworkspace-workspace-package-entry-point.md) — This is the package initializer for the Enterprise Edition (EE) cloud workspace 
-- [schemas — Pydantic request/response schemas for the Workspace domain](schemas-pydantic-requestresponse-schemas-for-the-workspace-domain.md) — Defines the data validation and serialization layer for workspace-related API op
-- [workspace.router — FastAPI REST router for workspace management](workspacerouter-fastapi-rest-router-for-workspace-management.md) — Defines the FastAPI APIRouter that exposes all workspace-related HTTP endpoints 
+- [pockets.__init__ — Entry point and public API aggregator for the pockets subsystem](pocketsinit-entry-point-and-public-api-aggregator-for-the-pockets-subsystem.md) — This module serves as the public interface for the enterprise cloud pockets subs
 
 ### workspace domain
 
-- [schemas — Workspace Domain Request/Response Models](schemas-workspace-domain-requestresponse-models.md) — Defines Pydantic-based request and response schemas for workspace management ope
-- [WorkspaceService — Workspace domain business logic](workspaceservice-workspace-domain-business-logic.md) — Core service module that implements workspace CRUD operations, member management
-
-### workspace lifecycle
-
-- [event_handlers — Cross-domain event handlers for workspace side effects](eventhandlers-cross-domain-event-handlers-for-workspace-side-effects.md) — Provides async event handlers that react to domain events (invites, messages, po
+- [schemas — Pydantic request/response data models for workspace domain operations](schemas-pydantic-requestresponse-data-models-for-workspace-domain-operations.md) — This module defines the contract between the workspace API layer and its consume
 
 ### workspace management
 
-- [ee.cloud.workspace — Workspace Module Initialization](eecloudworkspace-workspace-module-initialization.md) — Package initialization module for the enterprise workspace subsystem. Exposes th
-- [pocket — Pocket workspace and widget document models](pocket-pocket-workspace-and-widget-document-models.md) — Defines MongoDB document models for Pocket workspaces and embedded Widget subdoc
-- [router — Auth domain FastAPI endpoint definitions](router-auth-domain-fastapi-endpoint-definitions.md) — Defines FastAPI routes for authentication operations including login, logout, re
-- [router — Workspace domain FastAPI endpoints](router-workspace-domain-fastapi-endpoints.md) — Provides REST API endpoints for workspace management in the PocketPaw cloud appl
-- [workspace/service — Workspace domain business logic service](workspaceservice-workspace-domain-business-logic-service.md) — Stateless service layer encapsulating all workspace business logic including CRU
-
-### workspace membership
-
-- [event_handlers — Cross-domain event processing and notifications](eventhandlers-cross-domain-event-processing-and-notifications.md) — Handles asynchronous side effects that span multiple domains (groups, pockets, n
-
-### workspace-api
-
-- [router — Knowledge Base FastAPI Endpoints](router-knowledge-base-fastapi-endpoints.md) — Provides workspace-scoped REST API endpoints for knowledge base operations inclu
+- [pocket — Data models for Pocket workspaces with widgets, teams, and collaborative agents](pocket-data-models-for-pocket-workspaces-with-widgets-teams-and-collaborative-ag.md) — This module defines the core document models (Pocket, Widget, WidgetPosition) th
+- [session — Cloud-tracked chat session document model for pocket-scoped conversations](session-cloud-tracked-chat-session-document-model-for-pocket-scoped-conversation.md) — The session module defines the Session document model that represents individual
+- [workspace — Data model for organization workspaces in multi-tenant enterprise deployments](workspace-data-model-for-organization-workspaces-in-multi-tenant-enterprise-depl.md) — This module defines the core data models that represent a workspace: the contain
 
