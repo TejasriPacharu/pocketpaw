@@ -40,17 +40,27 @@ def _session_response(session: Session) -> dict:
 class SessionService:
     """Stateless service encapsulating session business logic."""
 
-    # -----------------------------------------------------------------
-    # CRUD
-    # -----------------------------------------------------------------
-
     @staticmethod
     async def create(
         workspace_id: str, user_id: str, body: CreateSessionRequest
     ) -> dict:
-        """Create a session. Optionally link to a pocket on creation."""
+        """Create a session, or update if sessionId already exists."""
+        sid = body.session_id or f"websocket_{uuid.uuid4().hex[:12]}"
+
+        # If linking to an existing runtime session, check if MongoDB record exists
+        if body.session_id:
+            existing = await Session.find_one(Session.sessionId == body.session_id)
+            if existing:
+                # Update the existing record (e.g. add pocket link)
+                if body.pocket_id:
+                    existing.pocket = body.pocket_id
+                if body.title and body.title != "New Chat":
+                    existing.title = body.title
+                await existing.save()
+                return _session_response(existing)
+
         session = Session(
-            sessionId=str(uuid.uuid4()),
+            sessionId=sid,
             workspace=workspace_id,
             owner=user_id,
             title=body.title,
@@ -77,14 +87,7 @@ class SessionService:
     async def list_sessions(
         workspace_id: str, user_id: str
     ) -> list[dict]:
-        """List sessions for user in workspace, exclude deleted, sort by lastActivity desc.
-
-        Also syncs any runtime sessions that exist in file memory but
-        not yet in MongoDB (e.g. sessions created before cloud persistence).
-        """
-        # Sync runtime sessions to cloud
-        await SessionService._sync_runtime_sessions(workspace_id, user_id)
-
+        """List all sessions for user, sorted by lastActivity desc."""
         sessions = (
             await Session.find(
                 Session.workspace == workspace_id,
@@ -98,7 +101,6 @@ class SessionService:
 
     @staticmethod
     async def get(session_id: str, user_id: str) -> dict:
-        """Get a session by _id or sessionId. Verify owner."""
         session = await SessionService._get_session(session_id, user_id)
         return _session_response(session)
 
@@ -106,33 +108,29 @@ class SessionService:
     async def update(
         session_id: str, user_id: str, body: UpdateSessionRequest
     ) -> dict:
-        """Update session fields. Owner only."""
         session = await SessionService._get_session(session_id, user_id)
-
         if body.title is not None:
             session.title = body.title
         if body.pocket_id is not None:
             session.pocket = body.pocket_id
-
         await session.save()
         return _session_response(session)
 
     @staticmethod
     async def delete(session_id: str, user_id: str) -> None:
-        """Soft-delete a session via deleted_at. Owner only."""
         session = await SessionService._get_session(session_id, user_id)
         session.deleted_at = datetime.now(UTC)
         await session.save()
 
     # -----------------------------------------------------------------
-    # Pocket-scoped helpers
+    # Pocket-scoped
     # -----------------------------------------------------------------
 
     @staticmethod
     async def list_for_pocket(
         pocket_id: str, user_id: str
     ) -> list[dict]:
-        """Find sessions where pocket == pocket_id."""
+        logger.info(f"Listing sessions for pocket {pocket_id} and user {user_id}")
         sessions = (
             await Session.find(
                 Session.pocket == pocket_id,
@@ -151,32 +149,25 @@ class SessionService:
         pocket_id: str,
         body: CreateSessionRequest,
     ) -> dict:
-        """Create a session with pocket already set."""
         body_with_pocket = CreateSessionRequest(
             title=body.title,
             pocket_id=pocket_id,
             group_id=body.group_id,
             agent_id=body.agent_id,
+            session_id=body.session_id,
         )
         return await SessionService.create(workspace_id, user_id, body_with_pocket)
 
     # -----------------------------------------------------------------
-    # Runtime proxy
+    # History
     # -----------------------------------------------------------------
 
     @staticmethod
     async def get_history(session_id: str, user_id: str) -> dict:
-        """Get session chat history.
-
-        Checks two sources:
-        1. MongoDB Messages collection (cloud group chat)
-        2. Runtime file-based memory (dashboard WebSocket chat)
-
-        Returns whichever has messages.
-        """
+        """Get session chat history from runtime file memory."""
         session = await SessionService._get_session(session_id, user_id)
 
-        # 1. Try cloud Messages (group chat)
+        # Try cloud Messages first (group chat)
         if session.group:
             try:
                 from ee.cloud.models.message import Message
@@ -205,21 +196,16 @@ class SessionService:
                         ]
                     }
             except Exception:
-                logger.debug("Cloud message lookup failed for session %s", session.sessionId)
+                pass
 
-        # 2. Try runtime file-based memory
+        # Try runtime file-based memory
         try:
             from pocketpaw.memory.manager import MemoryManager
 
             manager = MemoryManager()
-            # Try multiple key formats: the sessionId, with colon, with underscore
             sid = session.sessionId
-            keys_to_try = [
-                sid,                              # as-is
-                sid.replace("_", ":", 1),          # websocket_abc → websocket:abc
-                f"websocket:{sid}",               # prefix with websocket:
-            ]
-            for key in keys_to_try:
+            # Try all possible key formats
+            for key in [sid, sid.replace("_", ":", 1), f"websocket:{sid}"]:
                 try:
                     entries = await manager.get_session_history(key)
                     if entries:
@@ -227,86 +213,33 @@ class SessionService:
                 except Exception:
                     continue
         except Exception:
-            logger.debug("Runtime memory lookup failed for session %s", session.sessionId)
+            pass
 
         return {"messages": []}
 
     # -----------------------------------------------------------------
-    # Touch (activity tracking)
+    # Touch
     # -----------------------------------------------------------------
 
     @staticmethod
     async def touch(session_id: str) -> None:
         """Update lastActivity and increment messageCount."""
         session = await Session.find_one(Session.sessionId == session_id)
+        # Fallback: strip websocket_ prefix
+        if not session and session_id.startswith("websocket_"):
+            session = await Session.find_one(Session.sessionId == session_id[10:])
         if session:
             session.lastActivity = datetime.now(UTC)
             session.messageCount += 1
             await session.save()
 
     # -----------------------------------------------------------------
-    # Internal helpers
+    # Internal
     # -----------------------------------------------------------------
 
     @staticmethod
-    @staticmethod
-    async def _sync_runtime_sessions(workspace_id: str, user_id: str) -> None:
-        """Import runtime file-memory sessions that don't exist in MongoDB yet.
-
-        Reads ~/.pocketpaw/memory/sessions/_index.json for the runtime's
-        session index and creates cloud Session documents for any missing.
-        """
-        try:
-            import json
-            from pocketpaw.config import get_config_dir
-
-            index_path = get_config_dir() / "memory" / "sessions" / "_index.json"
-            if not index_path.exists():
-                return
-
-            index = json.loads(index_path.read_text(encoding="utf-8"))
-
-            # Get existing cloud session IDs
-            existing = await Session.find(
-                Session.workspace == workspace_id,
-                Session.owner == user_id,
-            ).to_list()
-            existing_ids = {s.sessionId for s in existing}
-
-            for session_key, meta in index.items():
-                if session_key.startswith("_"):
-                    continue
-                # Normalize key: "websocket:abc" → "websocket_abc"
-                session_id = session_key.replace(":", "_")
-                if session_id in existing_ids or session_key in existing_ids:
-                    continue
-
-                title = meta.get("user_title") or meta.get("title") or session_key
-                last_activity = meta.get("last_activity")
-
-                session = Session(
-                    sessionId=session_id,
-                    workspace=workspace_id,
-                    owner=user_id,
-                    title=title[:100],
-                    messageCount=meta.get("message_count", 0),
-                )
-                # Set lastActivity from index
-                if last_activity:
-                    try:
-                        session.lastActivity = datetime.fromisoformat(last_activity)
-                    except Exception:
-                        pass
-
-                await session.insert()
-                logger.debug("Synced runtime session: %s → %s", session_id, title[:40])
-        except Exception:
-            # Non-fatal
-            logger.debug("Runtime session sync failed", exc_info=True)
-
-    @staticmethod
     async def _get_session(session_id: str, user_id: str) -> Session:
-        """Fetch by ObjectId first, then by sessionId. Verify owner."""
+        """Fetch by ObjectId first, then by sessionId."""
         session = None
         try:
             session = await Session.get(PydanticObjectId(session_id))
