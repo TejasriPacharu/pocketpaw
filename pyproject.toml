@@ -66,7 +66,7 @@ dependencies = [
 [project.optional-dependencies]
 # --- Feature extras ---
 vector = ["chromadb", "bm25s"]
-knowledge = ["trafilatura", "bm25s", "pypdf"]
+knowledge = ["knowledge-base @ file:///Users/prakash/Documents/Qbtrix/OCEAN-workspace/knowledge-base", "trafilatura", "bm25s", "pypdf"]
 databases = [
     "sqlalchemy[asyncio]>=2.0.0",
     "asyncpg>=0.29.0",       # PostgreSQL
@@ -326,6 +326,9 @@ Twitter = "https://twitter.com/prakashd88"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 only-include = ["src/pocketpaw", "ee"]

@@ -1,7 +1,8 @@
 # Created: Knowledge base domain router for ee/cloud.
+# Updated: 2026-04-06 — Switched from pocketpaw.knowledge to standalone
+# knowledge_base package with PocketPawCompilerBackend adapter.
 # Workspace-scoped KB endpoints: search, ingest (text/url), lint, article,
 # concept, stats, list articles, list concepts.
-# Delegates all logic to pocketpaw.knowledge.KnowledgeEngine.
 """Knowledge base domain — FastAPI router.
 
 Workspace-scoped knowledge base endpoints consumed by the wiki pocket template
@@ -28,10 +29,14 @@ router = APIRouter(
 
 def _engine(workspace_id: str, scope_override: str | None = None):
     """Build a KnowledgeEngine for the given workspace (or overridden scope)."""
-    from pocketpaw.knowledge import KnowledgeEngine
+    from knowledge_base import KnowledgeEngine
+    from ee.cloud.kb.backend_adapter import PocketPawCompilerBackend
 
     scope = scope_override or f"workspace:{workspace_id}"
-    return KnowledgeEngine(scope=scope)
+    return KnowledgeEngine(
+        scope=scope,
+        backend=PocketPawCompilerBackend(),
+    )
 
 
 # ---------------------------------------------------------------------------

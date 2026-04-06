@@ -1,4 +1,7 @@
-"""Agent knowledge service — thin wrapper over the core KnowledgeEngine.
+"""Agent knowledge service — thin wrapper over the standalone knowledge-base package.
+
+Updated: 2026-04-06 — Switched from pocketpaw.knowledge to standalone knowledge_base
+package. Uses PocketPawCompilerBackend adapter for LLM compilation.
 
 Delegates all operations to KnowledgeEngine(scope="agent:{agent_id}").
 """
@@ -10,12 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
-    """Agent-scoped knowledge operations via the core KnowledgeEngine."""
+    """Agent-scoped knowledge operations via the standalone knowledge-base package."""
 
     @staticmethod
     def _engine(agent_id: str):
-        from pocketpaw.knowledge import KnowledgeEngine
-        return KnowledgeEngine(scope=f"agent:{agent_id}")
+        from knowledge_base import KnowledgeEngine
+        from ee.cloud.kb.backend_adapter import PocketPawCompilerBackend
+
+        return KnowledgeEngine(
+            scope=f"agent:{agent_id}",
+            backend=PocketPawCompilerBackend(),
+        )
 
     @staticmethod
     async def ingest_text(agent_id: str, text: str, source: str = "manual") -> dict:
