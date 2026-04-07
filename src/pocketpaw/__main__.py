@@ -223,6 +223,7 @@ Examples:
 """,
     )
 
+    # ── Global flags ────────────────────────────────────────────────────
     parser.add_argument(
         "--web",
         "-w",
@@ -230,22 +231,30 @@ Examples:
         help="Run web dashboard (same as default, kept for compatibility)",
     )
     parser.add_argument(
-        "--telegram", action="store_true", help="Run Telegram-only mode (legacy pairing flow)"
+        "--telegram",
+        action="store_true",
+        help="Run Telegram-only mode (legacy pairing flow)",
     )
     parser.add_argument("--discord", action="store_true", help="Run headless Discord bot")
     parser.add_argument("--slack", action="store_true", help="Run headless Slack bot (Socket Mode)")
     parser.add_argument(
-        "--whatsapp", action="store_true", help="Run headless WhatsApp webhook server"
+        "--whatsapp",
+        action="store_true",
+        help="Run headless WhatsApp webhook server",
     )
     parser.add_argument("--signal", action="store_true", help="Run headless Signal bot")
     parser.add_argument("--matrix", action="store_true", help="Run headless Matrix bot")
     parser.add_argument("--teams", action="store_true", help="Run headless Teams bot")
     parser.add_argument("--gchat", action="store_true", help="Run headless Google Chat bot")
     parser.add_argument(
-        "--security-audit", action="store_true", help="Run security audit and print report"
+        "--security-audit",
+        action="store_true",
+        help="Run security audit and print report",
     )
     parser.add_argument(
-        "--fix", action="store_true", help="Auto-fix fixable issues found by --security-audit"
+        "--fix",
+        action="store_true",
+        help="Auto-fix fixable issues found by --security-audit",
     )
     parser.add_argument(
         "--pii-scan",
@@ -257,6 +266,13 @@ Examples:
         type=str,
         default=None,
         help="Host to bind web server (default: auto-detect; 0.0.0.0 on headless servers)",
+    )
+    parser.add_argument(
+        "--port",
+        "-p",
+        type=int,
+        default=8888,
+        help="Port for web server (default: 8888; auto-falls back if busy)",
     )
     parser.add_argument("--dev", action="store_true", help="Development mode with auto-reload")
     parser.add_argument(
@@ -270,13 +286,20 @@ Examples:
         help="Check OpenAI-compatible endpoint connectivity and tool calling support",
     )
     parser.add_argument(
-        "--doctor", action="store_true", help="(deprecated: use 'pocketpaw doctor') Run diagnostics"
+        "--doctor",
+        action="store_true",
+        help="(deprecated: use 'pocketpaw doctor') Run diagnostics",
     )
     parser.add_argument(
-        "--version", "-v", action="version", version=f"%(prog)s {get_version('pocketpaw')}"
+        "--version",
+        "-v",
+        action="version",
+        version=f"%(prog)s {get_version('pocketpaw')}",
     )
     parser.add_argument(
-        "--json", action="store_true", help="Output as JSON (works with most subcommands)"
+        "--json",
+        action="store_true",
+        help="Output as JSON (works with most subcommands)",
     )
     parser.add_argument(
         "--watch",
@@ -286,14 +309,8 @@ Examples:
         default=0,
         help="Watch mode: refresh status every N seconds (default: 2)",
     )
-    parser.add_argument(
-        "--port",
-        "-p",
-        type=int,
-        default=8888,
-        help="Port for web server (default: 8888; auto-falls back if busy)",
-    )
 
+    # ── Subcommand (positional) ─────────────────────────────────────────
     parser.add_argument(
         "command",
         nargs="?",
@@ -314,7 +331,14 @@ Examples:
         ],
         help="Subcommand to run",
     )
-    parser.add_argument("subargs", nargs="*", default=[], help=argparse.SUPPRESS)
+    parser.add_argument(
+        "subargs",
+        nargs="*",
+        default=[],
+        help=argparse.SUPPRESS,
+    )
+
+    # ── Flags for subcommands (shared namespace) ────────────────────────
     parser.add_argument("--search", type=str, default=None, help=argparse.SUPPRESS)
     parser.add_argument(
         "--limit",
@@ -328,7 +352,11 @@ Examples:
 
 
 def _resolve_subargs(args) -> None:
-    """Parse positional subargs into named attributes based on the command."""
+    """Parse positional subargs into named attributes based on the command.
+
+    Transforms: pocketpaw channels start discord
+    Into: args.subaction="start", args.query="discord"
+    """
     subargs = args.subargs or []
     args.subaction = None
     args.query = None
@@ -380,18 +408,11 @@ def _serve(
     for attempt in range(max_attempts):
         # Best-effort probe using same host the server will bind to
         with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as s:
-            s.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
             try:
                 s.bind((host, current_port))
             except OSError:
                 next_port = current_port + 1
-                print(
-                    "\n  [WARN] Port "
-                    + str(current_port)
-                    + " busy — trying "
-                    + str(next_port)
-                    + "\n"
-                )
+                print(f"\n  [WARN] Port {current_port} busy — trying {next_port}\n")
                 current_port = next_port
                 continue
         # Probe passed — attempt real server startup
@@ -401,13 +422,7 @@ def _serve(
         except OSError as e:
             if e.errno in (_errno.EADDRINUSE, 10048):
                 next_port = current_port + 1
-                print(
-                    "\n  [WARN] Port "
-                    + str(current_port)
-                    + " taken at bind — trying "
-                    + str(next_port)
-                    + "\n"
-                )
+                print(f"\n  [WARN] Port {current_port} taken at bind — trying {next_port}\n")
                 current_port = next_port
             else:
                 raise
@@ -523,18 +538,11 @@ def main() -> None:
         or args.gchat
     )
 
-    is_starting_server = args.command in (None, "serve") or args.telegram or has_channel_flag
-
-    if is_starting_server:
-        effective_port = args.port
-    else:
-        effective_port = args.port
-
     try:
         if args.command == "serve":
             from pocketpaw.api.serve import run_api_server
 
-            _serve(run_api_server, host=host, port=effective_port, dev=args.dev)
+            _serve(run_api_server, host=host, port=args.port, dev=args.dev)
         elif args.command == "status":
             from pocketpaw.cli.status import run_status
 
@@ -566,7 +574,7 @@ def main() -> None:
             _run_async(run_multi_channel_mode(settings, args))
         else:
             # Default: web dashboard (also handles --web flag)
-            _serve(run_dashboard_mode, settings, host=host, port=effective_port, dev=args.dev)
+            _serve(run_dashboard_mode, settings, host=host, port=args.port, dev=args.dev)
     except KeyboardInterrupt:
         logger.info("PocketPaw stopped.")
     finally:
