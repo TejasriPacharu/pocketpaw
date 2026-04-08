@@ -427,14 +427,16 @@ class ClaudeSDKBackend:
     # MCP servers whose functionality is already provided by Claude Code's
     # built-in WebSearch tool.  Passing these causes duplicate/conflicting
     # search behaviour and wastes context on redundant tool definitions.
-    _BUILTIN_SEARCH_MCP_NAMES = frozenset({
-        "brave-search",
-        "tavily-search",
-        "exa-search",
-        "Brave Search",
-        "Tavily Search",
-        "Exa Search",
-    })
+    _BUILTIN_SEARCH_MCP_NAMES = frozenset(
+        {
+            "brave-search",
+            "tavily-search",
+            "exa-search",
+            "Brave Search",
+            "Tavily Search",
+            "Exa Search",
+        }
+    )
 
     def _get_mcp_servers(self) -> dict[str, dict]:
         """Load enabled MCP server configs, filtered by tool policy.
