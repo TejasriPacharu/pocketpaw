@@ -200,6 +200,10 @@ try:
 except Exception as _a2a_exc:
     logger.warning("A2A Protocol unavailable — skipping router mount: %s", _a2a_exc)
 
+# Mount Socket.IO for enterprise real-time group chat
+# NOTE: Socket.IO ASGI wrapper is applied AFTER all routes/middleware are registered.
+# See bottom of file: the module-level `app` is replaced with the wrapped version.
+
 # Mount channel management router (webhooks, extras, channel status/toggle)
 app.include_router(channels_router)
 
@@ -1806,6 +1810,20 @@ def run_dashboard(
                 logger.error("Max restart limit (%d) reached, exiting.", _MAX_RESTARTS)
                 break
             logger.info("Restarting server with updated settings...")
+
+
+# ---------------------------------------------------------------------------
+# Wrap FastAPI app with Socket.IO ASGI middleware (enterprise real-time chat)
+# Must be AFTER all routes and middleware are registered.
+# ---------------------------------------------------------------------------
+try:
+    from ee.cloud.socketio_server import wrap_asgi_app
+    app = wrap_asgi_app(app)
+    logger.info("Socket.IO ASGI wrapper applied")
+except ImportError:
+    pass
+except Exception as _sio_exc:
+    logger.warning("Socket.IO wrapper failed: %s", _sio_exc)
 
 
 if __name__ == "__main__":
