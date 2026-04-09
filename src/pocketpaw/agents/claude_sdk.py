@@ -490,127 +490,6 @@ class ClaudeSDKBackend:
             servers[cfg.name] = entry
         return servers
 
-    @staticmethod
-    def _merge_consecutive_roles(messages: list[dict]) -> list[dict]:
-        """Merge consecutive messages with the same role for API compliance.
-
-        The Anthropic API requires alternating user/assistant roles.
-        Consecutive same-role messages are concatenated with newlines.
-        """
-        if not messages:
-            return []
-        merged: list[dict] = [messages[0].copy()]
-        for msg in messages[1:]:
-            if msg["role"] == merged[-1]["role"]:
-                merged[-1]["content"] += "\n" + msg["content"]
-            else:
-                merged.append(msg.copy())
-        return merged
-
-    async def _fast_chat(
-        self,
-        message: str,
-        *,
-        system_prompt: str,
-        history: list[dict] | None = None,
-        model: str,
-    ) -> AsyncIterator[AgentEvent]:
-        """Direct Anthropic API path for simple messages.
-
-        Bypasses the Claude CLI subprocess entirely, saving ~1.5-3s of
-        process fork + Node.js startup + CLI initialization overhead.
-        No tools are provided (simple messages don't need them).
-        """
-        try:
-            import time
-
-            from pocketpaw.llm.client import resolve_llm_client
-
-            t0 = time.monotonic()
-            llm = resolve_llm_client(self.settings)
-            client = llm.create_anthropic_client()
-            t1 = time.monotonic()
-            logger.info("Fast-path: client created in %.0fms", (t1 - t0) * 1000)
-
-            # Build API messages from history + current message
-            api_messages: list[dict] = []
-            if history:
-                for msg in history:
-                    role = msg.get("role", "user")
-                    content = msg.get("content", "")
-                    if role in ("user", "assistant") and content:
-                        api_messages.append({"role": role, "content": content})
-            api_messages.append({"role": "user", "content": message})
-
-            # Merge consecutive same-role messages for API compliance
-            api_messages = self._merge_consecutive_roles(api_messages)
-
-            logger.info(
-                "Fast-path: calling %s (system=%d chars, msgs=%d)",
-                model,
-                len(system_prompt),
-                len(api_messages),
-            )
-            t2 = time.monotonic()
-
-            # Respect provider max_tokens (e.g. DeepSeek caps at 8192)
-            provider = self.settings.claude_sdk_provider or "anthropic"
-            if provider == "litellm" and self.settings.litellm_max_tokens > 0:
-                fast_max_tokens = self.settings.litellm_max_tokens
-            elif provider == "openai_compatible" and self.settings.openai_compatible_max_tokens > 0:
-                fast_max_tokens = self.settings.openai_compatible_max_tokens
-            else:
-                fast_max_tokens = 4096
-
-            async with client.messages.stream(
-                model=model,
-                system=system_prompt,
-                messages=api_messages,
-                max_tokens=fast_max_tokens,
-            ) as stream:
-                t3 = time.monotonic()
-                logger.info("Fast-path: stream opened in %.0fms", (t3 - t2) * 1000)
-                first_token = True
-                async for text in stream.text_stream:
-                    if first_token:
-                        t4 = time.monotonic()
-                        logger.info(
-                            "Fast-path: first token in %.0fms (total %.0fms)",
-                            (t4 - t3) * 1000,
-                            (t4 - t0) * 1000,
-                        )
-                        first_token = False
-                    if self._stop_flag:
-                        logger.info("Fast-path: stop flag set, breaking stream")
-                        break
-                    yield AgentEvent(type="message", content=text)
-
-                # Extract usage from the final message
-                final_msg = stream.get_final_message()
-                if final_msg and hasattr(final_msg, "usage") and final_msg.usage:
-                    u = final_msg.usage
-                    yield AgentEvent(
-                        type="token_usage",
-                        content="",
-                        metadata={
-                            "input_tokens": getattr(u, "input_tokens", 0),
-                            "output_tokens": getattr(u, "output_tokens", 0),
-                            "cached_input_tokens": getattr(u, "cache_read_input_tokens", 0)
-                            + getattr(u, "cache_creation_input_tokens", 0),
-                            "model": model,
-                            "backend": "claude_agent_sdk",
-                        },
-                    )
-
-            yield AgentEvent(type="done", content="")
-
-        except Exception as e:
-            from pocketpaw.llm.client import resolve_llm_client
-
-            llm = resolve_llm_client(self.settings)
-            logger.error("Fast-path API error: %s", e)
-            yield AgentEvent(type="error", content=llm.format_api_error(e))
-
     async def _get_or_create_client(self, options: Any, *, session_key: str | None = None) -> Any:
         """Get or create a persistent ClaudeSDKClient.
 
@@ -808,12 +687,9 @@ class ClaudeSDKBackend:
                     )
                     return
 
-            # Smart model routing — classify complexity for model selection.
-            # All messages go through the Claude Code CLI subprocess which
+            # Smart model routing — classify complexity to pick the model tier.
+            # All messages go through the Claude Code CLI subprocess, which
             # handles conversation compaction automatically (PreCompact hook).
-            # The previous _fast_chat direct-API path bypassed the CLI's
-            # built-in context management, causing unrecoverable "Prompt is
-            # too long" errors on long sessions.
             selection = None
             if self.settings.smart_routing_enabled and not is_non_anthropic:
                 from pocketpaw.agents.model_router import ModelRouter
