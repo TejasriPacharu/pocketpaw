@@ -1,5 +1,6 @@
 # PocketPaw Enterprise Edition — gated features for team/business/enterprise plans.
-# Created: 2026-04-10
+# Created: 2026-03-30
+# Updated: 2026-04-10 — Added guards module (RBAC + ABAC).
 # License: FSL 1.1 (Functional Source License)
 #
 # Module map:
