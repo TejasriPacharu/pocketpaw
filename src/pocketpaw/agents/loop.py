@@ -34,10 +34,17 @@ from pocketpaw.security.redact import redact_output
 
 logger = logging.getLogger(__name__)
 
-# Number of history messages (user + assistant turns) at which a compact
-# identity reminder is appended to the system prompt.  The reminder nudges
-# the model back toward the configured identity without a full re-injection.
-_IDENTITY_REINFORCE_THRESHOLD = 20
+# Number of messages after which periodic identity reinforcement occurs.
+# Re-injects the full <identity> block every N messages to prevent personality drift.
+_IDENTITY_REINFORCE_INTERVAL = 5
+
+
+def _reinforce_identity(system_prompt: str, identity: str, message_count: int) -> str:
+    """Reinforce identity by re-injecting it periodically."""
+    if message_count > 0 and message_count % _IDENTITY_REINFORCE_INTERVAL == 0:
+        return system_prompt + f"\n\n{identity}"
+    return system_prompt
+
 
 # How long (seconds) a session lock must be idle before it is eligible for
 # garbage collection.  1 hour is generous enough to cover any in-flight work
@@ -98,6 +105,74 @@ def _extract_pocket_json(content: str) -> dict | None:
     return None
 
 
+async def _create_pocket_and_session(spec: dict, session_key: str) -> str | None:
+    """Create pocket + session in MongoDB. Returns pocket _id or None on failure."""
+    try:
+        from ee.cloud.models.session import Session
+        from ee.cloud.models.user import User
+        from ee.cloud.models.workspace import Workspace
+
+        # Find user + workspace from existing cloud data
+        # Try to find user from any existing session, or get the first active user
+        user = await User.find_one()
+        if not user:
+            logger.warning("Cannot create pocket — no user in DB")
+            return None
+        user_id = str(user.id)
+
+        workspace = await Workspace.find_one(Workspace.owner == user_id)
+        if not workspace:
+            # Try any workspace the user belongs to
+            workspace = await Workspace.find_one()
+        if not workspace:
+            logger.warning("Cannot create pocket — no workspace in DB")
+            return None
+        workspace_id = str(workspace.id)
+
+        # Create pocket
+        from ee.cloud.pockets.schemas import CreatePocketRequest
+        from ee.cloud.pockets.service import PocketService
+        meta = spec.get("metadata", {})
+        pocket = await PocketService.create(
+            workspace_id,
+            user_id,
+            CreatePocketRequest(
+                name=spec.get("title") or spec.get("name") or "Untitled",
+                description=spec.get("description", ""),
+                type=meta.get("category", "custom"),
+                icon="sparkles",
+                color=meta.get("color", "#0A84FF"),
+                rippleSpec=spec,
+            ),
+        )
+        pocket_id = str(pocket["_id"])
+
+        # Create session linked to this pocket
+        safe_key = session_key.replace(":", "_") if session_key else ""
+        if safe_key:
+            existing = await Session.find_one(Session.sessionId == safe_key)
+            if existing:
+                existing.pocket = pocket_id
+                await existing.save()
+            else:
+                from datetime import UTC, datetime
+                session = Session(
+                    sessionId=safe_key,
+                    workspace=workspace_id,
+                    owner=user_id,
+                    title=spec.get("title") or "New Chat",
+                    pocket=pocket_id,
+                    lastActivity=datetime.now(UTC),
+                )
+                await session.insert()
+
+        logger.info("Created pocket %s + session %s in MongoDB", pocket_id, safe_key)
+        return pocket_id
+    except Exception:
+        logger.warning("Failed to create pocket/session in MongoDB", exc_info=True)
+        return None
+
+
 async def _publish_pocket_event(
     bus: "MessageBus", content: str, session_key: str
 ) -> None:
@@ -124,10 +199,16 @@ async def _publish_pocket_event(
         "panes" in spec,
     )
     if evt_type == "created":
+        # Create pocket + session in MongoDB right here
+        pocket_cloud_id = await _create_pocket_and_session(spec, session_key)
         await bus.publish_system(
             SystemEvent(
                 event_type="pocket_created",
-                data={"spec": spec, "session_key": session_key},
+                data={
+                    "spec": spec,
+                    "session_key": session_key,
+                    "pocket_cloud_id": pocket_cloud_id,
+                },
             )
         )
     elif evt_type == "mutation":
@@ -243,7 +324,9 @@ class AgentLoop:
                 engine = PocketPawCognitiveEngine(
                     backend_provider=lambda: (
                         self._get_router()._backend if self._router is not None else None
-                    )
+                    ),
+                    model=settings.soul_cognitive_model,
+                    api_key=settings.anthropic_api_key or "",
                 )
 
                 self._soul_manager = SoulManager(settings)
@@ -636,20 +719,20 @@ class AgentLoop:
                     exc_info=True,
                 )
 
-            # 2b. Emit thinking event
             # 2b. Periodic identity reinforcement for long conversations.
-            # When the session has accumulated many turns the model may start
-            # drifting from the identity defined in <identity> block.
-            # Appending a compact reminder keeps the agent on-character without
-            # a full re-injection (which would waste context window).
-            if len(history) >= _IDENTITY_REINFORCE_THRESHOLD:
-                system_prompt += (
-                    "\n\n<identity-reminder>\n"
-                    "Regardless of conversation length, you remain the agent described in the "
-                    "<identity> block above. Maintain your defined personality, tone, and "
-                    "communication style consistently throughout this conversation.\n"
-                    "</identity-reminder>"
-                )
+            # Re-inject the full identity block every 5 messages to prevent drift.
+            try:
+                session_entries = await self.memory._store.get_session(session_key)
+                message_count = len(session_entries)
+            except (AttributeError, TypeError):
+                # Handle mocked memory store in tests
+                message_count = 0
+
+            bootstrap_context = self.context_builder.bootstrap.get_context()
+            if asyncio.iscoroutine(bootstrap_context):
+                bootstrap_context = await bootstrap_context
+            identity_block = bootstrap_context.to_identity_block()
+            system_prompt = _reinforce_identity(system_prompt, identity_block, message_count)
 
             # 2c. Emit agent_start + thinking events
             agent_started = True
