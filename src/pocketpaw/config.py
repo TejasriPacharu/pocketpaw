@@ -875,6 +875,22 @@ class Settings(BaseSettings):
             "auto_regen: passive energy recovery rate."
         ),
     )
+    kb_scope: str = Field(
+        default="",
+        description=(
+            "Knowledge base scope to query via the `kb` CLI (github.com/qbtrix/kb-go). "
+            "When set and the kb binary is on PATH, relevant articles are injected "
+            "into the agent system prompt alongside soul memories. Empty = disabled."
+        ),
+    )
+    kb_binary: str = Field(
+        default="kb",
+        description="Path to the kb binary (default: `kb` on PATH)",
+    )
+    kb_limit: int = Field(
+        default=3,
+        description="Number of top articles to inject from kb search (default: 3)",
+    )
 
     soul_cognitive_model: str = Field(
         default="",
