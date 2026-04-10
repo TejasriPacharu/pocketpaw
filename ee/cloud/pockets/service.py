@@ -1,7 +1,12 @@
-"""Pockets domain — business logic service."""
+"""Pockets domain — business logic service.
+
+Changes: Added create_from_ripple_spec() static method to PocketService for
+auto-creating pockets from agent-generated ripple specs (moved from agent_bridge.py).
+"""
 
 from __future__ import annotations
 
+import logging
 import secrets
 
 from beanie import PydanticObjectId
@@ -18,6 +23,8 @@ from ee.cloud.pockets.schemas import (
 from ee.cloud.ripple_normalizer import normalize_ripple_spec
 from ee.cloud.shared.errors import Forbidden, NotFound
 from ee.cloud.shared.events import event_bus
+
+logger = logging.getLogger(__name__)
 
 
 def _pocket_response(pocket: Pocket) -> dict:
@@ -190,6 +197,49 @@ class PocketService:
         pocket = await _get_pocket_or_404(pocket_id)
         _check_owner(pocket, user_id)
         await pocket.delete()
+
+    # -----------------------------------------------------------------
+    # Agent-generated pockets
+    # -----------------------------------------------------------------
+
+    @staticmethod
+    async def create_from_ripple_spec(
+        workspace_id: str,
+        owner_id: str,
+        ripple_spec: dict,
+        description: str = "",
+    ) -> str | None:
+        """Auto-create a pocket from an agent-generated ripple spec.
+
+        Returns the pocket ID on success, None on failure.
+        """
+        try:
+            normalized = normalize_ripple_spec(ripple_spec)
+            if not normalized:
+                return None
+
+            name = (
+                normalized.get("lifecycle", {}).get("name")
+                or normalized.get("name")
+                or normalized.get("title")
+                or "Agent-generated Pocket"
+            )
+
+            pocket = Pocket(
+                workspace=workspace_id,
+                name=name,
+                description=description,
+                type="ai-generated",
+                owner=owner_id,
+                rippleSpec=normalized,
+                visibility="workspace",
+            )
+            await pocket.insert()
+            logger.info("Auto-created pocket %s from ripple spec", pocket.id)
+            return str(pocket.id)
+        except Exception:
+            logger.warning("Failed to auto-create pocket from ripple spec", exc_info=True)
+            return None
 
     # -----------------------------------------------------------------
     # Widgets

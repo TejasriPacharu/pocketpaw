@@ -1,6 +1,8 @@
 """PocketPaw Enterprise Cloud — domain-driven architecture.
 
-Domains: auth, workspace, chat, pockets, sessions, agents.
+Updated: Added kb (knowledge base) domain router to mount_cloud().
+
+Domains: auth, workspace, chat, pockets, sessions, agents, kb.
 Each has router.py (thin), service.py (logic), schemas.py (validation).
 """
 from __future__ import annotations
@@ -34,6 +36,9 @@ def mount_cloud(app: FastAPI) -> None:
     app.include_router(chat_router, prefix="/api/v1")
     app.include_router(pockets_router, prefix="/api/v1")
     app.include_router(sessions_router, prefix="/api/v1")
+
+    from ee.cloud.kb.router import router as kb_router
+    app.include_router(kb_router, prefix="/api/v1")
 
     # User search endpoint — used by group settings, pocket sharing
     from ee.cloud.models.user import User as UserModel
