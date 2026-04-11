@@ -178,11 +178,54 @@ async def _create_pocket_and_session(spec: dict, session_key: str) -> str | None
         return None
 
 
+async def _update_pocket(spec: dict) -> str | None:
+    """Update an existing pocket's rippleSpec in MongoDB. Returns pocket _id or None."""
+    try:
+        from ee.cloud.models.user import User
+        from ee.cloud.pockets.schemas import UpdatePocketRequest
+        from ee.cloud.pockets.service import PocketService
+
+        # Extract pocket_id from the spec's lifecycle.id
+        pocket_id = spec.get("lifecycle", {}).get("id", "")
+        if not pocket_id:
+            pocket_id = spec.get("metadata", {}).get("pocket_id", "")
+        if not pocket_id:
+            logger.warning("Cannot update pocket — no pocket_id in spec")
+            return None
+
+        # Find the cloud pocket by lifecycle.id match
+        from ee.cloud.models.pocket import Pocket
+
+        pocket = await Pocket.find_one({"rippleSpec.lifecycle.id": pocket_id})
+        if not pocket:
+            logger.warning("Pocket with lifecycle.id=%s not found, falling back to create", pocket_id)
+            return None
+        cloud_id = str(pocket.id)
+
+        user = await User.find_one()
+        user_id = str(user.id) if user else ""
+
+        await PocketService.update(
+            cloud_id,
+            user_id,
+            UpdatePocketRequest(
+                name=spec.get("title") or spec.get("name"),
+                description=spec.get("description"),
+                rippleSpec=spec,
+            ),
+        )
+        logger.info("Updated pocket %s (lifecycle.id=%s) in MongoDB", cloud_id, pocket_id)
+        return cloud_id
+    except Exception:
+        logger.warning("Failed to update pocket in MongoDB", exc_info=True)
+        return None
+
+
 async def _publish_pocket_event(bus: "MessageBus", content: str, session_key: str) -> None:
     """Detect pocket event JSON in tool output and publish a dedicated SystemEvent.
 
     Pocket tools return output as: ``{json}\\n\\nhuman message``.
-    The JSON block has a ``pocket_event`` key (``"created"`` or ``"mutation"``).
+    The JSON block has a ``pocket_event`` key (``"created"``, ``"updated"``, or ``"mutation"``).
     """
     # Fast path: skip content that can't contain a pocket event.
     if '"pocket_event"' not in content:
@@ -207,6 +250,19 @@ async def _publish_pocket_event(bus: "MessageBus", content: str, session_key: st
         await bus.publish_system(
             SystemEvent(
                 event_type="pocket_created",
+                data={
+                    "spec": spec,
+                    "session_key": session_key,
+                    "pocket_cloud_id": pocket_cloud_id,
+                },
+            )
+        )
+    elif evt_type == "updated":
+        # Update existing pocket in MongoDB
+        pocket_cloud_id = await _update_pocket(spec)
+        await bus.publish_system(
+            SystemEvent(
+                event_type="pocket_updated",
                 data={
                     "spec": spec,
                     "session_key": session_key,

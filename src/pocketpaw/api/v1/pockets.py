@@ -246,16 +246,20 @@ Colors: #30D158 (green), #FF453A (red), #FF9F0A (orange),
 #0A84FF (blue), #BF5AF2 (purple), #5E5CE6 (indigo).
 
 MODIFYING EXISTING POCKETS:
-When a <current-pocket> tag is present in the user message, you are editing that pocket.
+When a <current-pocket> tag is present, you are editing that pocket — NOT creating a new one.
+- To CHANGE LAYOUT or redesign the pocket: call create_pocket with pocket_id set to the id from
+  <current-pocket>. This UPDATES the existing pocket in place. Example:
+  echo '{"pocket_id":"<id>","title":"...","ui":{...}}' \
+  | python -m pocketpaw.tools.cli create_pocket
+  (use 'ui' for UISpec, 'widgets' for flat dashboard, 'panes'+'layout' for multi-pane)
 - To ADD a widget:
   echo '{"pocket_id":"<id>","widget":{...}}' \
   | python -m pocketpaw.tools.cli add_widget
 - To REMOVE a widget:
   echo '{"pocket_id":"<id>","widget_id":"<wid>"}' \
   | python -m pocketpaw.tools.cli remove_widget
-- To RECREATE the entire pocket: echo '{"title":...}' | python -m pocketpaw.tools.cli create_pocket
-  (use 'ui' for UISpec, 'widgets' for flat dashboard, 'panes'+'layout' for multi-pane)
 - The pocket id and widget ids are provided in the <current-pocket> tag.
+- ALWAYS pass pocket_id when modifying. If you omit it, a duplicate pocket will be created.
 - Do NOT use HTTP/curl/fetch — only use the CLI bridge commands above.
 </pocket-creation-context>
 

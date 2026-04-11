@@ -339,6 +339,13 @@ class CreatePocketTool(BaseTool):
                         "required": ["type", "title", "data"],
                     },
                 },
+                "pocket_id": {
+                    "type": "string",
+                    "description": (
+                        "Pass an existing pocket ID to update it instead of creating a new one. "
+                        "Get this from the <current-pocket> tag when modifying an open pocket."
+                    ),
+                },
             },
             "required": ["title", "description", "category"],
         }
@@ -355,12 +362,15 @@ class CreatePocketTool(BaseTool):
         color: str = "#0A84FF",
         columns: int = 3,
         name: str = "",
+        pocket_id: str = "",
         **kwargs: Any,
     ) -> str:
         """Build and return a pocket spec as JSON."""
         import uuid
 
-        pocket_id = f"ai-{uuid.uuid4().hex[:8]}"
+        is_update = bool(pocket_id)
+        if not pocket_id:
+            pocket_id = f"ai-{uuid.uuid4().hex[:8]}"
         pocket_title = title or name or "Untitled Pocket"
 
         metadata = {
@@ -383,8 +393,10 @@ class CreatePocketTool(BaseTool):
                     "panes": valid_panes,
                     "metadata": metadata,
                 }
-                event_payload = json.dumps({"pocket_event": "created", "spec": spec})
-                msg = f"Created pocket **{pocket_title}** ({len(valid_panes)} panes)."
+                evt = "updated" if is_update else "created"
+                event_payload = json.dumps({"pocket_event": evt, "spec": spec})
+                verb = "Updated" if is_update else "Created"
+                msg = f"{verb} pocket **{pocket_title}** ({len(valid_panes)} panes)."
                 return f"{event_payload}\n\n{msg}"
 
         # ── UISpec v1.0 path: nested component tree ──
@@ -399,8 +411,10 @@ class CreatePocketTool(BaseTool):
             }
             if layout:
                 spec["layout"] = layout
-            event_payload = json.dumps({"pocket_event": "created", "spec": spec})
-            msg = f"Created pocket **{pocket_title}** (UISpec)."
+            evt = "updated" if is_update else "created"
+            event_payload = json.dumps({"pocket_event": evt, "spec": spec})
+            verb = "Updated" if is_update else "Created"
+            msg = f"{verb} pocket **{pocket_title}** (UISpec)."
             return f"{event_payload}\n\n{msg}"
 
         # ── Flat widgets path: UniversalSpec v2.0 dashboard ──
@@ -464,8 +478,10 @@ class CreatePocketTool(BaseTool):
         # Return structured JSON (first block) + human message (second block).
         # The AgentLoop detects the pocket_event key and publishes a dedicated
         # SystemEvent so the SSE handler receives it without regex/markers.
-        event_payload = json.dumps({"pocket_event": "created", "spec": spec})
-        msg = f"Created pocket **{pocket_title}** with {len(built_widgets)} widgets."
+        evt = "updated" if is_update else "created"
+        event_payload = json.dumps({"pocket_event": evt, "spec": spec})
+        verb = "Updated" if is_update else "Created"
+        msg = f"{verb} pocket **{pocket_title}** with {len(built_widgets)} widgets."
         return f"{event_payload}\n\n{msg}"
 
 
