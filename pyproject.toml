@@ -66,7 +66,7 @@ dependencies = [
 [project.optional-dependencies]
 # --- Feature extras ---
 vector = ["chromadb", "bm25s"]
-knowledge = ["knowledge-base @ file:///Users/prakash/Documents/Qbtrix/OCEAN-workspace/knowledge-base", "trafilatura", "bm25s", "pypdf"]
+knowledge = ["trafilatura", "bm25s", "pypdf"]
 databases = [
     "sqlalchemy[asyncio]>=2.0.0",
     "asyncpg>=0.29.0",       # PostgreSQL
@@ -75,7 +75,7 @@ databases = [
 ]
 postgresql = ["sqlalchemy[asyncio]>=2.0.0", "asyncpg>=0.29.0"]
 mysql = ["sqlalchemy[asyncio]>=2.0.0", "aiomysql>=0.2.0"]
-mongodb = ["motor>=3.3.0"]
+mongodb = ["motor>=3.3.0", "beanie>=1.26.0"]
 graph = ["networkx>=3.0"]
 dashboard = [
     # Kept for backward compat — dashboard deps are now in core.
@@ -385,3 +385,4 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--ignore=tests/cloud --ignore=tests/e2e"
