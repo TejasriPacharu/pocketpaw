@@ -114,11 +114,12 @@ async def get_article(
     article_id: str,
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
+    scope: str | None = None,
 ) -> dict:
     """Get a full article by ID (includes content)."""
-    scope = _scope(workspace_id)
+    resolved = _scope(workspace_id, scope)
     try:
-        result = _kb("show", article_id, "--scope", scope)
+        result = _kb("show", article_id, "--scope", resolved)
         if isinstance(result, dict):
             return result
         raise NotFound("article", article_id)
@@ -131,10 +132,11 @@ async def get_concept_articles(
     name: str,
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
+    scope: str | None = None,
 ) -> dict:
     """Get all articles associated with a concept."""
-    scope = _scope(workspace_id)
-    results = _kb("search", name, "--scope", scope, "--limit", "20")
+    resolved = _scope(workspace_id, scope)
+    results = _kb("search", name, "--scope", resolved, "--limit", "20")
     if not isinstance(results, list):
         results = []
     return {"concept": name, "articles": results, "total": len(results)}
@@ -149,10 +151,11 @@ async def get_concept_articles(
 async def kb_stats(
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
+    scope: str | None = None,
 ) -> dict:
     """Get knowledge base statistics."""
-    scope = _scope(workspace_id)
-    return _kb("stats", "--scope", scope)
+    resolved = _scope(workspace_id, scope)
+    return _kb("stats", "--scope", resolved)
 
 
 # ---------------------------------------------------------------------------
@@ -164,10 +167,11 @@ async def kb_stats(
 async def list_articles(
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
+    scope: str | None = None,
 ) -> dict:
     """List all articles (metadata only)."""
-    scope = _scope(workspace_id)
-    articles = _kb("list", "--scope", scope)
+    resolved = _scope(workspace_id, scope)
+    articles = _kb("list", "--scope", resolved)
     if not isinstance(articles, list):
         articles = []
     return {"articles": articles, "total": len(articles)}
@@ -177,8 +181,9 @@ async def list_articles(
 async def list_concepts(
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
+    scope: str | None = None,
 ) -> dict:
     """List all concepts."""
-    scope = _scope(workspace_id)
-    stats = _kb("stats", "--scope", scope)
+    resolved = _scope(workspace_id, scope)
+    stats = _kb("stats", "--scope", resolved)
     return {"concepts": stats.get("concepts", 0) if isinstance(stats, dict) else 0}
