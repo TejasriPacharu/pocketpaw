@@ -61,7 +61,9 @@ class TestCreatePocketTool:
             category="research",
             widgets=[
                 {
-                    "type": "metric", "title": "Users", "size": "sm",
+                    "type": "metric",
+                    "title": "Users",
+                    "size": "sm",
                     "data": {"value": "1000", "label": "Users"},
                 },
             ],
@@ -342,9 +344,14 @@ class TestLegacyWidgetConversion:
 class TestCreatePocketUISpec:
     async def test_ui_param_produces_v1_spec(self, create_tool):
         result = await create_tool.execute(
-            title="UISpec Pocket", description="Rich layout", category="research",
-            ui={"type": "flex", "props": {"direction": "column", "gap": "16px"},
-                "children": [{"type": "heading", "props": {"text": "Title", "level": 3}}]},
+            title="UISpec Pocket",
+            description="Rich layout",
+            category="research",
+            ui={
+                "type": "flex",
+                "props": {"direction": "column", "gap": "16px"},
+                "children": [{"type": "heading", "props": {"text": "Title", "level": 3}}],
+            },
         )
         spec = _extract_spec(result)
         assert spec["version"] == "1.0"
@@ -354,7 +361,9 @@ class TestCreatePocketUISpec:
 
     async def test_ui_takes_precedence_over_widgets(self, create_tool):
         result = await create_tool.execute(
-            title="Both", description="desc", category="research",
+            title="Both",
+            description="desc",
+            category="research",
             ui={"type": "flex", "props": {}, "children": []},
             widgets=[{"type": "metric", "title": "X", "data": {"value": "1"}}],
         )
@@ -365,7 +374,9 @@ class TestCreatePocketUISpec:
 
     async def test_empty_ui_falls_back_to_widgets(self, create_tool):
         result = await create_tool.execute(
-            title="Fallback", description="desc", category="data",
+            title="Fallback",
+            description="desc",
+            category="data",
             ui={},
             widgets=[{"type": "metric", "title": "X", "size": "sm", "data": {"value": "1"}}],
         )
@@ -375,9 +386,14 @@ class TestCreatePocketUISpec:
 
     async def test_multi_pane_spec(self, create_tool):
         result = await create_tool.execute(
-            title="Multi Pane", description="desc", category="data", layout="quad",
-            panes={"tl": {"type": "flex", "props": {}, "children": []},
-                   "tr": {"type": "heading", "props": {"text": "Charts", "level": 4}}},
+            title="Multi Pane",
+            description="desc",
+            category="data",
+            layout="quad",
+            panes={
+                "tl": {"type": "flex", "props": {}, "children": []},
+                "tr": {"type": "heading", "props": {"text": "Charts", "level": 4}},
+            },
         )
         spec = _extract_spec(result)
         assert spec["version"] == "1.0"

@@ -10,11 +10,11 @@ import pytest
 
 from pocketpaw.connectors.yaml_engine import DirectRESTAdapter, parse_connector_yaml
 
-
 CONNECTORS_DIR = Path(__file__).parent.parent / "connectors"
 
 
 # --- Gap 1: Real HTTP in DirectRESTAdapter ---
+
 
 class TestRealHTTP:
     @pytest.fixture
@@ -80,6 +80,7 @@ class TestRealHTTP:
         await stripe_adapter.connect("p1", {"STRIPE_API_KEY": "sk_test_123"})
 
         import httpx
+
         mock_response = MagicMock()
         mock_response.status_code = 401
         mock_response.text = "Unauthorized"
@@ -112,10 +113,12 @@ class TestRealHTTP:
 
 # --- Gap 2: Agent Tools ---
 
+
 class TestFabricTools:
     @pytest.mark.asyncio
     async def test_fabric_query_no_store(self):
         from pocketpaw.tools.builtin.fabric_tools import FabricQueryTool
+
         tool = FabricQueryTool()
         with patch("pocketpaw.tools.builtin.fabric_tools._get_fabric_store", return_value=None):
             result = await tool.execute(type_name="Customer")
@@ -123,20 +126,32 @@ class TestFabricTools:
 
     @pytest.mark.asyncio
     async def test_fabric_query_with_results(self):
-        from pocketpaw.tools.builtin.fabric_tools import FabricQueryTool
         from ee.fabric.models import FabricObject, FabricQueryResult
+        from pocketpaw.tools.builtin.fabric_tools import FabricQueryTool
 
         mock_store = MagicMock()
-        mock_store.query = AsyncMock(return_value=FabricQueryResult(
-            objects=[
-                FabricObject(type_id="t1", type_name="Customer", properties={"name": "Acme", "revenue": 50000}),
-                FabricObject(type_id="t1", type_name="Customer", properties={"name": "Beta Corp", "revenue": 30000}),
-            ],
-            total=2,
-        ))
+        mock_store.query = AsyncMock(
+            return_value=FabricQueryResult(
+                objects=[
+                    FabricObject(
+                        type_id="t1",
+                        type_name="Customer",
+                        properties={"name": "Acme", "revenue": 50000},
+                    ),
+                    FabricObject(
+                        type_id="t1",
+                        type_name="Customer",
+                        properties={"name": "Beta Corp", "revenue": 30000},
+                    ),
+                ],
+                total=2,
+            )
+        )
 
         tool = FabricQueryTool()
-        with patch("pocketpaw.tools.builtin.fabric_tools._get_fabric_store", return_value=mock_store):
+        with patch(
+            "pocketpaw.tools.builtin.fabric_tools._get_fabric_store", return_value=mock_store
+        ):
             result = await tool.execute(type_name="Customer")
 
         assert "Found 2" in result
@@ -145,18 +160,28 @@ class TestFabricTools:
 
     @pytest.mark.asyncio
     async def test_fabric_create_object(self):
+        from ee.fabric.models import FabricObject, ObjectType
         from pocketpaw.tools.builtin.fabric_tools import FabricCreateTool
-        from ee.fabric.models import ObjectType, FabricObject
 
         mock_store = MagicMock()
-        mock_store.get_type_by_name = AsyncMock(return_value=ObjectType(name="Customer", properties=[]))
-        mock_store.create_object = AsyncMock(return_value=FabricObject(
-            type_id="t1", type_name="Customer", properties={"name": "Acme"},
-        ))
+        mock_store.get_type_by_name = AsyncMock(
+            return_value=ObjectType(name="Customer", properties=[])
+        )
+        mock_store.create_object = AsyncMock(
+            return_value=FabricObject(
+                type_id="t1",
+                type_name="Customer",
+                properties={"name": "Acme"},
+            )
+        )
 
         tool = FabricCreateTool()
-        with patch("pocketpaw.tools.builtin.fabric_tools._get_fabric_store", return_value=mock_store):
-            result = await tool.execute(action="create_object", type_name="Customer", properties={"name": "Acme"})
+        with patch(
+            "pocketpaw.tools.builtin.fabric_tools._get_fabric_store", return_value=mock_store
+        ):
+            result = await tool.execute(
+                action="create_object", type_name="Customer", properties={"name": "Acme"}
+            )
 
         assert "Created Customer" in result
         assert "Acme" in result
@@ -165,21 +190,29 @@ class TestFabricTools:
 class TestInstinctTools:
     @pytest.mark.asyncio
     async def test_propose_action(self):
-        from pocketpaw.tools.builtin.instinct_tools import InstinctProposeTool
         from ee.instinct.models import Action, ActionTrigger
+        from pocketpaw.tools.builtin.instinct_tools import InstinctProposeTool
 
         mock_store = MagicMock()
-        mock_store.propose = AsyncMock(return_value=Action(
-            pocket_id="p1", title="Reorder inventory", description="Stock low",
-            recommendation="Order 20 units",
-            trigger=ActionTrigger(type="agent", source="pocketpaw", reason="low stock"),
-        ))
+        mock_store.propose = AsyncMock(
+            return_value=Action(
+                pocket_id="p1",
+                title="Reorder inventory",
+                description="Stock low",
+                recommendation="Order 20 units",
+                trigger=ActionTrigger(type="agent", source="pocketpaw", reason="low stock"),
+            )
+        )
 
         tool = InstinctProposeTool()
-        with patch("pocketpaw.tools.builtin.instinct_tools._get_instinct_store", return_value=mock_store):
+        with patch(
+            "pocketpaw.tools.builtin.instinct_tools._get_instinct_store", return_value=mock_store
+        ):
             result = await tool.execute(
-                pocket_id="p1", title="Reorder inventory",
-                recommendation="Order 20 units", reason="Stock below threshold",
+                pocket_id="p1",
+                title="Reorder inventory",
+                recommendation="Order 20 units",
+                reason="Stock below threshold",
             )
 
         assert "Action proposed" in result
@@ -194,23 +227,31 @@ class TestInstinctTools:
         mock_store.pending = AsyncMock(return_value=[])
 
         tool = InstinctPendingTool()
-        with patch("pocketpaw.tools.builtin.instinct_tools._get_instinct_store", return_value=mock_store):
+        with patch(
+            "pocketpaw.tools.builtin.instinct_tools._get_instinct_store", return_value=mock_store
+        ):
             result = await tool.execute()
 
         assert "all clear" in result
 
     @pytest.mark.asyncio
     async def test_audit_query(self):
-        from pocketpaw.tools.builtin.instinct_tools import InstinctAuditTool
         from ee.instinct.models import AuditEntry
+        from pocketpaw.tools.builtin.instinct_tools import InstinctAuditTool
 
         mock_store = MagicMock()
-        mock_store.query_audit = AsyncMock(return_value=[
-            AuditEntry(actor="agent:claude", event="action_proposed", description="Proposed: Reorder"),
-        ])
+        mock_store.query_audit = AsyncMock(
+            return_value=[
+                AuditEntry(
+                    actor="agent:claude", event="action_proposed", description="Proposed: Reorder"
+                ),
+            ]
+        )
 
         tool = InstinctAuditTool()
-        with patch("pocketpaw.tools.builtin.instinct_tools._get_instinct_store", return_value=mock_store):
+        with patch(
+            "pocketpaw.tools.builtin.instinct_tools._get_instinct_store", return_value=mock_store
+        ):
             result = await tool.execute(limit=5)
 
         assert "action_proposed" in result
