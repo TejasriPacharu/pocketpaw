@@ -4,6 +4,10 @@
 # Updated: 2026-04-12 (Move 1 PR-A) — Corrections table + record_correction() and
 #   get_corrections*() methods for the correction loop. Human edits between
 #   proposal and approval land here, then feed soul-protocol on next proposal.
+# Updated: 2026-04-13 (Move 2 PR-A/B) — instinct_fabric_snapshots table +
+#   record_fabric_snapshot/get_snapshots_*. propose() now accepts optional
+#   reasoning_trace and fabric_snapshots, persisting the trace as JSON inside
+#   AuditEntry.context["reasoning_trace"] and keying snapshots to the audit row.
 
 from __future__ import annotations
 
@@ -25,7 +29,7 @@ from ee.instinct.models import (
     AuditCategory,
     AuditEntry,
 )
-from ee.instinct.trace import FabricObjectSnapshot
+from ee.instinct.trace import FabricObjectSnapshot, ReasoningTrace
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS instinct_actions (
@@ -127,6 +131,8 @@ class InstinctStore:
         priority: ActionPriority = ActionPriority.MEDIUM,
         parameters: dict[str, Any] | None = None,
         context: ActionContext | None = None,
+        reasoning_trace: ReasoningTrace | None = None,
+        fabric_snapshots: list[FabricObjectSnapshot] | None = None,
     ) -> Action:
         action = Action(
             pocket_id=pocket_id,
@@ -163,14 +169,25 @@ class InstinctStore:
             )
             await db.commit()
 
-        await self._log(
+        audit_context: dict[str, Any] = {}
+        if reasoning_trace is not None:
+            audit_context["reasoning_trace"] = reasoning_trace.model_dump(mode="json")
+
+        audit_entry = await self._log(
             action_id=action.id,
             pocket_id=pocket_id,
             actor=f"{trigger.type}:{trigger.source}",
             event="action_proposed",
             description=f"Proposed: {title}",
             ai_recommendation=recommendation,
+            context=audit_context,
         )
+
+        if fabric_snapshots:
+            for snapshot in fabric_snapshots:
+                snapshot.audit_id = audit_entry.id
+                await self.record_fabric_snapshot(snapshot)
+
         return action
 
     async def approve(self, action_id: str, approver: str = "user") -> Action | None:
