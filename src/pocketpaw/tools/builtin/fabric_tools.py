@@ -19,6 +19,26 @@ def _get_fabric_store():
         return None
 
 
+async def _emit_trace_events(event_type: str, entries: list[dict[str, Any]]) -> None:
+    """Publish one SystemEvent per entry so TraceCollector can aggregate them.
+
+    Silent in the common case — the message bus only has subscribers when a
+    proposal is actively being traced. Any failure is swallowed so tool calls
+    never break because telemetry is sick.
+    """
+    if not entries:
+        return
+    try:
+        from pocketpaw.bus import get_message_bus
+        from pocketpaw.bus.events import SystemEvent
+
+        bus = get_message_bus()
+        for entry in entries:
+            await bus.publish_system(SystemEvent(event_type=event_type, data=entry))
+    except Exception:
+        logger.debug("Trace event emission skipped (event_type=%s)", event_type)
+
+
 class FabricQueryTool(BaseTool):
     """Query objects in the Fabric ontology."""
 
@@ -84,6 +104,15 @@ class FabricQueryTool(BaseTool):
                     link_type=link_type,
                     limit=min(limit, 50),
                 )
+            )
+
+            # Emit a trace event per object so decision-time snapshots can
+            # capture what this query actually returned. The collector is only
+            # active when an InstinctProposeTool wraps the reasoning, so this
+            # is a no-op in all other contexts.
+            await _emit_trace_events(
+                "fabric_query",
+                [{"object_id": obj.id, "object_type": obj.type_name} for obj in result.objects],
             )
 
             if not result.objects:
