@@ -92,6 +92,7 @@ try:
         FabricQueryTool,
         FabricStatsTool,
     )
+    from pocketpaw.tools.builtin.instinct_corrections import InstinctCorrectionsTool
     from pocketpaw.tools.builtin.instinct_tools import (
         InstinctAuditTool,
         InstinctPendingTool,
@@ -105,6 +106,7 @@ try:
         InstinctProposeTool,
         InstinctPendingTool,
         InstinctAuditTool,
+        InstinctCorrectionsTool,
     ]
     _EE_NAMES = {cls.__name__: cls for cls in _EE_TOOLS}
 except ImportError:
