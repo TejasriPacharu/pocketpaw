@@ -22,6 +22,8 @@ from ee.instinct.models import (
     AuditEntry,
 )
 from ee.instinct.store import InstinctStore
+from ee.instinct.trace import FabricObjectSnapshot, ReasoningTrace, ToolCallRef
+from ee.instinct.trace_collector import TraceCollector
 
 __all__ = [
     "Action",
@@ -34,7 +36,11 @@ __all__ = [
     "AuditEntry",
     "Correction",
     "CorrectionPatch",
+    "FabricObjectSnapshot",
     "InstinctStore",
+    "ReasoningTrace",
+    "ToolCallRef",
+    "TraceCollector",
     "compute_patches",
     "summarize_correction",
 ]

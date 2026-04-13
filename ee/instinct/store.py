@@ -25,6 +25,7 @@ from ee.instinct.models import (
     AuditCategory,
     AuditEntry,
 )
+from ee.instinct.trace import FabricObjectSnapshot
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS instinct_actions (
@@ -74,12 +75,23 @@ CREATE TABLE IF NOT EXISTS instinct_corrections (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS instinct_fabric_snapshots (
+    id TEXT PRIMARY KEY,
+    object_id TEXT NOT NULL,
+    audit_id TEXT NOT NULL,
+    object_type TEXT DEFAULT '',
+    snapshot TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_actions_pocket ON instinct_actions(pocket_id);
 CREATE INDEX IF NOT EXISTS idx_actions_status ON instinct_actions(status);
 CREATE INDEX IF NOT EXISTS idx_audit_pocket ON instinct_audit(pocket_id);
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON instinct_audit(timestamp);
 CREATE INDEX IF NOT EXISTS idx_corrections_pocket ON instinct_corrections(pocket_id);
 CREATE INDEX IF NOT EXISTS idx_corrections_action ON instinct_corrections(action_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_audit ON instinct_fabric_snapshots(audit_id);
+CREATE INDEX IF NOT EXISTS idx_snapshots_object ON instinct_fabric_snapshots(object_id);
 """
 
 
@@ -459,6 +471,57 @@ class InstinctStore:
         corrections = await self.get_corrections_for_pocket(pocket_id, limit=1000)
         return sum(1 for c in corrections if any(p.path == path for p in c.patches))
 
+    # --- Fabric object snapshots (decision traces) ---
+
+    async def record_fabric_snapshot(self, snapshot: FabricObjectSnapshot) -> FabricObjectSnapshot:
+        """Persist a Fabric object snapshot keyed to the audit entry.
+
+        The snapshot preserves the object's state at decision time so later
+        queries can reproduce what the agent actually saw, even if the live
+        object has been updated since.
+        """
+        await self._ensure_schema()
+        async with self._conn() as db:
+            await db.execute(
+                "INSERT INTO instinct_fabric_snapshots"
+                " (id, object_id, audit_id, object_type, snapshot, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    snapshot.id,
+                    snapshot.object_id,
+                    snapshot.audit_id,
+                    snapshot.object_type,
+                    json.dumps(snapshot.snapshot),
+                    snapshot.created_at.isoformat(),
+                ),
+            )
+            await db.commit()
+        return snapshot
+
+    async def get_snapshots_for_audit(self, audit_id: str) -> list[FabricObjectSnapshot]:
+        await self._ensure_schema()
+        async with self._conn() as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM instinct_fabric_snapshots WHERE audit_id = ?"
+                " ORDER BY created_at ASC",
+                (audit_id,),
+            ) as cur:
+                return [self._row_to_snapshot(row) async for row in cur]
+
+    async def get_snapshots_for_object(
+        self, object_id: str, limit: int = 100
+    ) -> list[FabricObjectSnapshot]:
+        await self._ensure_schema()
+        async with self._conn() as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM instinct_fabric_snapshots WHERE object_id = ?"
+                " ORDER BY created_at DESC LIMIT ?",
+                (object_id, limit),
+            ) as cur:
+                return [self._row_to_snapshot(row) async for row in cur]
+
     # --- Helpers ---
 
     def _row_to_action(self, row: Any) -> Action:
@@ -506,5 +569,15 @@ class InstinctStore:
             patches=[CorrectionPatch.model_validate(p) for p in patches_raw],
             context_summary=row["context_summary"],
             action_title=row["action_title"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    def _row_to_snapshot(self, row: Any) -> FabricObjectSnapshot:
+        return FabricObjectSnapshot(
+            id=row["id"],
+            object_id=row["object_id"],
+            audit_id=row["audit_id"],
+            object_type=row["object_type"] or "",
+            snapshot=json.loads(row["snapshot"]) if row["snapshot"] else {},
             created_at=datetime.fromisoformat(row["created_at"]),
         )
