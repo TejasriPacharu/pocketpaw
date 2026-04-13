@@ -54,6 +54,10 @@ class FabricObject(BaseModel):
     source_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+    # Move 5 PR-B — RBAC/ABAC scope tags. Empty list = visible to anyone.
+    # Hierarchical glob: org:sales:* matches org:sales:leads. Filtered at
+    # query time before results reach the LLM.
+    scope: list[str] = Field(default_factory=list)
 
 
 class FabricLink(BaseModel):
@@ -77,6 +81,10 @@ class FabricQuery(BaseModel):
     link_type: str | None = None
     limit: int = 50
     offset: int = 0
+    # Move 5 PR-B — caller's effective scope set. Empty = no scope filter
+    # (sees everything). Populated by paw-runtime from session auth before
+    # forwarding to FabricStore.query().
+    scopes: list[str] = Field(default_factory=list)
 
 
 class FabricQueryResult(BaseModel):

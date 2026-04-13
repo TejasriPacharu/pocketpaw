@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS fabric_objects (
     source_connector TEXT,
     source_id TEXT,
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    updated_at TEXT DEFAULT (datetime('now')),
+    scope TEXT DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS fabric_links (
@@ -163,33 +164,42 @@ class FabricStore:
 
     async def create_object(
         self,
-        type_id: str,
-        properties: dict[str, Any],
+        type_id_or_obj: str | FabricObject,
+        properties: dict[str, Any] | None = None,
         source_connector: str | None = None,
         source_id: str | None = None,
+        scope: list[str] | None = None,
     ) -> FabricObject:
-        obj_type = await self.get_type(type_id)
-        obj = FabricObject(
-            type_id=type_id,
-            type_name=obj_type.name if obj_type else "",
-            properties=properties,
-            source_connector=source_connector,
-            source_id=source_id,
-        )
+        """Insert a FabricObject. Accepts either a type_id + properties pair
+        (legacy positional shape) or a pre-built FabricObject instance.
+        """
+        if isinstance(type_id_or_obj, FabricObject):
+            obj = type_id_or_obj
+        else:
+            obj_type = await self.get_type(type_id_or_obj)
+            obj = FabricObject(
+                type_id=type_id_or_obj,
+                type_name=obj_type.name if obj_type else "",
+                properties=properties or {},
+                source_connector=source_connector,
+                source_id=source_id,
+                scope=scope or [],
+            )
         await self._ensure_schema()
         async with self._conn() as db:
             await db.execute(
                 "INSERT INTO fabric_objects"
                 " (id, type_id, type_name, properties,"
-                " source_connector, source_id)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                " source_connector, source_id, scope)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     obj.id,
                     obj.type_id,
                     obj.type_name,
-                    json.dumps(properties),
-                    source_connector,
-                    source_id,
+                    json.dumps(obj.properties),
+                    obj.source_connector,
+                    obj.source_id,
+                    json.dumps(obj.scope),
                 ),
             )
             await db.commit()
@@ -347,6 +357,11 @@ class FabricStore:
             ) as cur:
                 objects = [self._row_to_object(row) async for row in cur]
 
+        if q.scopes:
+            from ee.policy.engine import filter_visible
+
+            objects, _ = filter_visible(objects, q.scopes)
+
         return FabricQueryResult(objects=objects, total=total)
 
     # --- Stats ---
@@ -377,6 +392,15 @@ class FabricStore:
         )
 
     def _row_to_object(self, row: Any) -> FabricObject:
+        scope_raw = row["scope"] if "scope" in row.keys() else None
+        scope: list[str] = []
+        if scope_raw:
+            try:
+                parsed = json.loads(scope_raw)
+                if isinstance(parsed, list):
+                    scope = [s for s in parsed if isinstance(s, str)]
+            except (ValueError, TypeError):
+                scope = []
         return FabricObject(
             id=row["id"],
             type_id=row["type_id"],
@@ -384,4 +408,5 @@ class FabricStore:
             properties=json.loads(row["properties"]) if row["properties"] else {},
             source_connector=row["source_connector"],
             source_id=row["source_id"],
+            scope=scope,
         )
