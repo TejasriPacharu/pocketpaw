@@ -181,11 +181,27 @@ async def approve_action(action_id: str, req: ApproveRequest | None = None):
             )
             await store.record_correction(correction)
             await _persist_edits(store, after, edited_fields)
+            await _forward_to_soul(correction, after)
 
     approved = await store.approve(action_id, approver=req.approver)
     if not approved:
         raise HTTPException(404, "Action not found")
     return ApproveResponse(action=approved, correction=correction)
+
+
+async def _forward_to_soul(correction: Correction, action: Action) -> None:
+    """Hand off to the soul bridge — always best-effort, never breaks approval."""
+    try:
+        from ee.instinct.correction_soul_bridge import CorrectionSoulBridge
+        from pocketpaw.soul.manager import get_soul_manager
+
+        manager = get_soul_manager()
+        if manager is None:
+            return
+        bridge = CorrectionSoulBridge(soul_manager=manager, store=_store())
+        await bridge.record(correction, action)
+    except Exception:
+        logger.exception("Correction soul-bridge failed (non-fatal)")
 
 
 @router.post("/instinct/actions/{action_id}/reject", response_model=Action)
