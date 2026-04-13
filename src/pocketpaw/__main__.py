@@ -96,6 +96,7 @@ _EARLY_COMMANDS = {
     "config",
     "errors",
     "logs",
+    "retrieval",
 }
 
 
@@ -174,6 +175,18 @@ def _handle_early_command(args) -> int | None:
         return run_logs_cmd(
             limit=getattr(args, "limit", 50),
             follow=getattr(args, "follow", False),
+            as_json=getattr(args, "json", False),
+        )
+
+    if cmd == "retrieval":
+        from pocketpaw.cli.retrieval import run_retrieval_cmd
+
+        return run_retrieval_cmd(
+            action=getattr(args, "subaction", None),
+            limit=getattr(args, "limit", 20),
+            actor=getattr(args, "actor", None),
+            source=getattr(args, "source", None),
+            pocket_id=getattr(args, "pocket_id", None),
             as_json=getattr(args, "json", False),
         )
 
@@ -328,6 +341,7 @@ Examples:
             "config",
             "errors",
             "logs",
+            "retrieval",
         ],
         help="Subcommand to run",
     )
@@ -347,6 +361,15 @@ Examples:
         help="Limit number of results (for errors, logs, sessions, memory)",
     )
     parser.add_argument("--follow", action="store_true", help="Tail mode (for logs)")
+    parser.add_argument("--actor", type=str, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--source", type=str, default=None, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--pocket-id",
+        dest="pocket_id",
+        type=str,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
 
     return parser
 
@@ -383,6 +406,8 @@ def _resolve_subargs(args) -> None:
             args.key = subargs[1]
         if len(subargs) > 2:
             args.value = subargs[2]
+    elif cmd == "retrieval" and subargs:
+        args.subaction = subargs[0]
 
     if args.limit is None:
         defaults = {"errors": 20, "logs": 50, "sessions": 20, "memory": 10}
