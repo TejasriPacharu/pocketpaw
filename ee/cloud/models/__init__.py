@@ -14,6 +14,18 @@ from ee.cloud.models.session import Session
 from ee.cloud.models.user import OAuthAccount, User, WorkspaceMembership
 from ee.cloud.models.workspace import Workspace, WorkspaceSettings
 
+# Lazy import to avoid circular imports
+FileUpload: type = None  # type: ignore[assignment]
+
+
+def _ensure_file_upload():
+    global FileUpload
+    if FileUpload is None:
+        from ee.cloud.uploads.models import FileUpload as _FileUpload
+
+        FileUpload = _FileUpload
+    return FileUpload
+
 __all__ = [
     "Agent",
     "AgentConfig",
@@ -22,6 +34,7 @@ __all__ = [
     "CommentAuthor",
     "CommentTarget",
     "FileObj",
+    "FileUpload",
     "Group",
     "GroupAgent",
     "Invite",
@@ -41,16 +54,55 @@ __all__ = [
     "WorkspaceSettings",
 ]
 
-ALL_DOCUMENTS = [
-    User,
-    Agent,
-    Pocket,
-    Session,
-    Comment,
-    Notification,
-    FileObj,
-    Workspace,
-    Invite,
-    Group,
-    Message,
-]
+def get_all_documents():
+    """Get all Beanie documents, with lazy FileUpload loading."""
+    _ensure_file_upload()
+    return [
+        User,
+        Agent,
+        Pocket,
+        Session,
+        Comment,
+        Notification,
+        FileObj,
+        FileUpload,
+        Workspace,
+        Invite,
+        Group,
+        Message,
+    ]
+
+
+# For backward compat, expose as lazy-loading list
+class _LazyAllDocuments(list):
+    """Lazy-loads ALL_DOCUMENTS on first access."""
+
+    def __init__(self):
+        super().__init__()
+        self._loaded = False
+
+    def _ensure_loaded(self):
+        if not self._loaded:
+            docs = get_all_documents()
+            self.clear()
+            self.extend(docs)
+            self._loaded = True
+
+    def __getitem__(self, index):
+        self._ensure_loaded()
+        return super().__getitem__(index)
+
+    def __iter__(self):
+        self._ensure_loaded()
+        return super().__iter__()
+
+    def __len__(self):
+        self._ensure_loaded()
+        return super().__len__()
+
+    def __contains__(self, item):
+        self._ensure_loaded()
+        return super().__contains__(item)
+
+
+ALL_DOCUMENTS = _LazyAllDocuments()

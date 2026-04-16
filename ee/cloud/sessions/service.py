@@ -97,6 +97,29 @@ class SessionService:
         return [_session_response(s) for s in sessions]
 
     @staticmethod
+    async def list_by_agent(
+        workspace_id: str,
+        user_id: str,
+        agent_id: str,
+    ) -> list[dict]:
+        """List a user's DM sessions for a specific agent, newest first.
+
+        Used by the frontend to resolve the DM room for an agent — pick the
+        most-recent session to resume, or show the full list for history.
+        """
+        sessions = (
+            await Session.find(
+                Session.workspace == workspace_id,
+                Session.owner == user_id,
+                Session.agent == agent_id,
+                Session.deleted_at == None,  # noqa: E711
+            )
+            .sort(-Session.lastActivity)
+            .to_list()
+        )
+        return [_session_response(s) for s in sessions]
+
+    @staticmethod
     async def get(session_id: str, user_id: str) -> dict:
         session = await SessionService._get_session(session_id, user_id)
         return _session_response(session)
@@ -190,6 +213,7 @@ class SessionService:
                         "sender": m.sender,
                         "senderType": m.sender_type,
                         "createdAt": m.createdAt.isoformat() if m.createdAt else None,
+                        "attachments": [a.model_dump() for a in (m.attachments or [])],
                     }
                     for m in messages
                 ]
@@ -211,6 +235,7 @@ class SessionService:
                     "sender": m.sender,
                     "senderType": m.sender_type,
                     "createdAt": m.createdAt.isoformat() if m.createdAt else None,
+                    "attachments": [a.model_dump() for a in (m.attachments or [])],
                 }
                 for m in messages
             ]

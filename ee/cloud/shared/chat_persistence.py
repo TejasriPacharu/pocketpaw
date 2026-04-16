@@ -49,14 +49,29 @@ def register_chat_persistence() -> None:
         logger.exception("Failed to register chat persistence")
 
 
-async def save_user_message(chat_id: str, content: str) -> None:
-    """Persist a user chat message. ``chat_id`` must be the Session.sessionId."""
+async def save_user_message(
+    chat_id: str,
+    content: str,
+    attachments: list[dict] | None = None,
+) -> None:
+    """Persist a user chat message. ``chat_id`` must be the Session.sessionId.
+
+    ``attachments``, when present, is a list of Attachment-shaped dicts
+    (``{type, url, name, meta}``). They are stored on the Message doc so
+    reloaded history shows the uploaded files.
+    """
     try:
         ctx = await _resolve_session_context(chat_id)
         if not ctx:
             logger.warning("no session context for chat_id=%s — user message dropped", chat_id)
             return
-        await _write_message(ctx, role="user", content=content, sender_type="user")
+        await _write_message(
+            ctx,
+            role="user",
+            content=content,
+            sender_type="user",
+            attachments=attachments,
+        )
     except Exception:
         logger.exception("Failed to persist user message")
 
@@ -77,13 +92,9 @@ async def _on_outbound_message(message) -> None:
 
             ctx = await _resolve_session_context(chat_id)
             if not ctx:
-                logger.warning(
-                    "no session context for chat_id=%s — agent message dropped", chat_id
-                )
+                logger.warning("no session context for chat_id=%s — agent message dropped", chat_id)
                 return
-            await _write_message(
-                ctx, role="assistant", content=full_text, sender_type="agent"
-            )
+            await _write_message(ctx, role="assistant", content=full_text, sender_type="agent")
             return
 
         # Non-streaming content accumulation
@@ -172,10 +183,27 @@ async def _auto_create_pocket_session(chat_id: str):
     return session
 
 
-async def _write_message(ctx: dict, *, role: str, content: str, sender_type: str) -> None:
+async def _write_message(
+    ctx: dict,
+    *,
+    role: str,
+    content: str,
+    sender_type: str,
+    attachments: list[dict] | None = None,
+) -> None:
     """Insert a Message in the right context and touch the Session."""
-    from ee.cloud.models.message import Message
+    from ee.cloud.models.message import Attachment, Message
     from ee.cloud.models.session import Session
+
+    # Coerce incoming dicts to the Attachment document model so Beanie
+    # doesn't try to persist raw dicts.
+    attachment_docs: list[Attachment] = []
+    if attachments:
+        for a in attachments:
+            try:
+                attachment_docs.append(Attachment(**a))
+            except Exception:
+                logger.warning("skipping malformed attachment on user message: %r", a)
 
     if ctx["is_group"]:
         msg = Message(
@@ -184,6 +212,7 @@ async def _write_message(ctx: dict, *, role: str, content: str, sender_type: str
             sender=ctx["owner"] if sender_type == "user" else None,
             sender_type=sender_type,
             content=content,
+            attachments=attachment_docs,
         )
     else:
         msg = Message(
@@ -193,6 +222,7 @@ async def _write_message(ctx: dict, *, role: str, content: str, sender_type: str
             sender=ctx["owner"] if sender_type == "user" else None,
             sender_type=sender_type,
             content=content,
+            attachments=attachment_docs,
         )
     await msg.insert()
 

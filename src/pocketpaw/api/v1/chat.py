@@ -188,6 +188,7 @@ async def _send_message(chat_request: ChatRequest) -> str:
     """Publish an inbound message to the bus and return the chat_id."""
     from pocketpaw.bus import get_message_bus
     from pocketpaw.bus.events import Channel, InboundMessage
+    from pocketpaw.uploads.resolver import resolve_media_with_records
 
     chat_id = _extract_chat_id(chat_request.session_id)
 
@@ -195,16 +196,72 @@ async def _send_message(chat_request: ChatRequest) -> str:
     if chat_request.file_context:
         meta["file_context"] = chat_request.file_context.model_dump(exclude_none=True)
 
+    # Resolve ``/api/v1/uploads/{id}`` URLs to (path, FileRecord) pairs so the
+    # agent prompt can carry filename / mime / size, not just a bare disk path.
+    # Falls back to the EE Mongo store when OSS JSONL misses — common in
+    # self-hosted EE where uploads go through the workspace-scoped router.
+    resolved = await resolve_media_with_records(chat_request.media or [])
+    media = [r.path for r in resolved]
+    media_info = [
+        {
+            "path": r.path,
+            "filename": r.record.filename,
+            "mime": r.record.mime,
+            "size": r.record.size,
+        }
+        for r in resolved
+        if r.record is not None
+    ]
+    if media_info:
+        meta["media_info"] = media_info
+
+    # Persistence-friendly Attachment payloads for Mongo history. Kept on the
+    # original upload URL (not the resolved disk path) so the FE can <img
+    # src> the stored message on reload without server-side rewriting.
+    attachments: list[dict] = []
+    for original_url, r in zip(chat_request.media or [], resolved, strict=False):
+        if r.record is None:
+            continue
+        kind = (
+            "image"
+            if r.record.mime.startswith("image/")
+            else ("audio" if r.record.mime.startswith("audio/") else "file")
+        )
+        attachments.append(
+            {
+                "type": kind,
+                "url": original_url,
+                "name": r.record.filename,
+                "meta": {
+                    "mime": r.record.mime,
+                    "size": r.record.size,
+                    "id": r.record.id,
+                },
+            }
+        )
+
     msg = InboundMessage(
         channel=Channel.WEBSOCKET,
         sender_id="api_client",
         chat_id=chat_id,
         content=chat_request.content,
-        media=chat_request.media,
+        media=media,
         metadata=meta,
     )
     bus = get_message_bus()
     await bus.publish_inbound(msg)
+
+    # Persist the user message with attachments to Mongo so reloaded history
+    # shows uploads. Isolated import so OSS (no EE) deployments don't fail.
+    try:
+        from ee.cloud.shared.chat_persistence import save_user_message
+
+        await save_user_message(chat_id, chat_request.content, attachments=attachments or None)
+    except ImportError:
+        pass
+    except Exception:
+        logger.exception("chat_persistence.save_user_message failed")
+
     return chat_id
 
 
