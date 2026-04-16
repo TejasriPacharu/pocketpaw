@@ -188,7 +188,7 @@ async def _send_message(chat_request: ChatRequest) -> str:
     """Publish an inbound message to the bus and return the chat_id."""
     from pocketpaw.bus import get_message_bus
     from pocketpaw.bus.events import Channel, InboundMessage
-    from pocketpaw.uploads.resolver import default_resolver, resolve_media_paths
+    from pocketpaw.uploads.resolver import resolve_media_paths_any
 
     chat_id = _extract_chat_id(chat_request.session_id)
 
@@ -197,8 +197,10 @@ async def _send_message(chat_request: ChatRequest) -> str:
         meta["file_context"] = chat_request.file_context.model_dump(exclude_none=True)
 
     # Resolve ``/api/v1/uploads/{id}`` URLs in ``media`` to local disk paths
-    # so the agent loop can hand them to the Read tool.
-    media = resolve_media_paths(chat_request.media or [], resolver=default_resolver())
+    # so the agent loop can hand them to the Read tool. Falls back to the EE
+    # Mongo store when OSS JSONL misses — common in self-hosted EE where
+    # uploads go through the workspace-scoped router but chat is OSS.
+    media = await resolve_media_paths_any(chat_request.media or [])
 
     msg = InboundMessage(
         channel=Channel.WEBSOCKET,
