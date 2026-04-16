@@ -35,9 +35,14 @@ async def create_session(
 
 @router.get("", dependencies=[Depends(require_action_any_workspace("session.read_own"))])
 async def list_sessions(
+    agent_id: str | None = None,
     workspace_id: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
 ) -> list[dict]:
+    """List the user's sessions. ``?agent_id=X`` filters to DM sessions for
+    that agent (used by the frontend to resolve the DM room)."""
+    if agent_id:
+        return await SessionService.list_by_agent(workspace_id, user_id, agent_id)
     return await SessionService.list_sessions(workspace_id, user_id)
 
 
