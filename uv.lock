@@ -4328,6 +4328,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "qrcode", extra = ["pil"] },
     { name = "rich" },
+    { name = "soul-protocol" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -4342,6 +4343,7 @@ all = [
     { name = "google-adk" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
+    { name = "google-auth-oauthlib" },
     { name = "google-genai" },
     { name = "html2text" },
     { name = "langchain-mcp-adapters" },
@@ -4358,7 +4360,7 @@ all = [
     { name = "python-telegram-bot" },
     { name = "sarvamai" },
     { name = "slack-bolt" },
-    { name = "soul-protocol", extra = ["engine"] },
+    { name = "soul-protocol" },
 ]
 all-backends = [
     { name = "deepagents" },
@@ -4374,6 +4376,7 @@ all-channels = [
     { name = "discord-cli-agent" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
+    { name = "google-auth-oauthlib" },
     { name = "matrix-nio" },
     { name = "neonize" },
     { name = "python-telegram-bot" },
@@ -4392,7 +4395,7 @@ all-tools = [
     { name = "pyautogui" },
     { name = "pytesseract" },
     { name = "sarvamai" },
-    { name = "soul-protocol", extra = ["engine"] },
+    { name = "soul-protocol" },
 ]
 browser = [
     { name = "playwright" },
@@ -4454,6 +4457,11 @@ dev = [
 discord = [
     { name = "discord-cli-agent" },
 ]
+drive = [
+    { name = "google-api-python-client" },
+    { name = "google-auth" },
+    { name = "google-auth-oauthlib" },
+]
 enterprise = [
     { name = "beanie" },
     { name = "boto3" },
@@ -4468,7 +4476,7 @@ enterprise = [
     { name = "python-socketio" },
     { name = "redis", extra = ["hiredis"] },
     { name = "slowapi" },
-    { name = "soul-protocol", extra = ["engine"] },
+    { name = "soul-protocol" },
 ]
 extract = [
     { name = "html2text" },
@@ -4536,7 +4544,7 @@ slack = [
     { name = "slack-bolt" },
 ]
 soul = [
-    { name = "soul-protocol", extra = ["engine"] },
+    { name = "soul-protocol" },
 ]
 teams = [
     { name = "botbuilder-core" },
@@ -4640,13 +4648,18 @@ requires-dist = [
     { name = "google-api-python-client", marker = "extra == 'all'", specifier = ">=2.100.0" },
     { name = "google-api-python-client", marker = "extra == 'all-channels'", specifier = ">=2.100.0" },
     { name = "google-api-python-client", marker = "extra == 'dev'", specifier = ">=2.100.0" },
+    { name = "google-api-python-client", marker = "extra == 'drive'", specifier = ">=2.100.0" },
     { name = "google-api-python-client", marker = "extra == 'enterprise'", specifier = ">=2.100.0" },
     { name = "google-api-python-client", marker = "extra == 'gchat'", specifier = ">=2.100.0" },
     { name = "google-auth", marker = "extra == 'all'", specifier = ">=2.25.0" },
     { name = "google-auth", marker = "extra == 'all-channels'", specifier = ">=2.25.0" },
     { name = "google-auth", marker = "extra == 'dev'", specifier = ">=2.25.0" },
+    { name = "google-auth", marker = "extra == 'drive'", specifier = ">=2.25.0" },
     { name = "google-auth", marker = "extra == 'enterprise'", specifier = ">=2.25.0" },
     { name = "google-auth", marker = "extra == 'gchat'", specifier = ">=2.25.0" },
+    { name = "google-auth-oauthlib", marker = "extra == 'all'", specifier = ">=1.2.0" },
+    { name = "google-auth-oauthlib", marker = "extra == 'all-channels'", specifier = ">=1.2.0" },
+    { name = "google-auth-oauthlib", marker = "extra == 'drive'", specifier = ">=1.2.0" },
     { name = "google-auth-oauthlib", marker = "extra == 'enterprise'", specifier = ">=1.2.0" },
     { name = "google-cloud-storage", marker = "extra == 'enterprise'", specifier = ">=2.14.0" },
     { name = "google-genai", marker = "extra == 'all'", specifier = ">=1.0.0" },
@@ -4746,6 +4759,7 @@ requires-dist = [
     { name = "slack-bolt", marker = "extra == 'dev'", specifier = ">=1.20.0" },
     { name = "slack-bolt", marker = "extra == 'slack'", specifier = ">=1.20.0" },
     { name = "slowapi", marker = "extra == 'enterprise'", specifier = ">=0.1.9" },
+    { name = "soul-protocol", extras = ["engine"], specifier = ">=0.3.1" },
     { name = "soul-protocol", extras = ["engine"], marker = "extra == 'all'", specifier = ">=0.3.0" },
     { name = "soul-protocol", extras = ["engine"], marker = "extra == 'all-tools'", specifier = ">=0.3.0" },
     { name = "soul-protocol", extras = ["engine"], marker = "extra == 'soul'", specifier = ">=0.3.0" },
@@ -4755,7 +4769,7 @@ requires-dist = [
     { name = "trafilatura", marker = "extra == 'knowledge'" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.31.1" },
 ]
-provides-extras = ["vector", "knowledge", "databases", "postgresql", "mysql", "mongodb", "graph", "dashboard", "telegram", "browser", "desktop", "openai-agents", "google-adk", "copilot-sdk", "deep-agents", "litellm", "memory", "soul", "discord", "slack", "whatsapp-personal", "matrix", "teams", "gchat", "image", "extract", "voice", "ocr", "sarvam", "mcp", "recommended", "channels", "all-channels", "all-tools", "all-backends", "enterprise", "all", "dev"]
+provides-extras = ["vector", "knowledge", "databases", "postgresql", "mysql", "mongodb", "graph", "dashboard", "telegram", "browser", "desktop", "openai-agents", "google-adk", "copilot-sdk", "deep-agents", "litellm", "memory", "soul", "discord", "slack", "whatsapp-personal", "matrix", "teams", "gchat", "drive", "image", "extract", "voice", "ocr", "sarvam", "mcp", "recommended", "channels", "all-channels", "all-tools", "all-backends", "enterprise", "all", "dev"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -6393,23 +6407,16 @@ wheels = [
 
 [[package]]
 name = "soul-protocol"
-version = "0.3.0"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/f1/47f519731a8923594710a89375c0afeda69927cafb863b20f21be61b7a9e/soul_protocol-0.3.0.tar.gz", hash = "sha256:cff219cfed2921d0706bc3797e3468eaef67bdf9a9a62696b309c9b7bb579fff", size = 1269118, upload-time = "2026-04-09T14:58:13.589Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/75/c6/bfadfec28106559b3b121bee89f750900473e260b6269505c454a07cb237/soul_protocol-0.3.0-py3-none-any.whl", hash = "sha256:aacd9a1e91b0b5e894b3b0ca68113eb3806465ade5a7efa57f4af5b159e64d25", size = 283139, upload-time = "2026-04-09T14:58:11.998Z" },
-]
-
-[package.optional-dependencies]
-engine = [
     { name = "click" },
     { name = "cryptography" },
+    { name = "pydantic" },
     { name = "pyyaml" },
     { name = "rich" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/b6/e7/1799cfc9c83c0a12b7e3d403190d01794c2c685917ec63bb3c4741183ca7/soul_protocol-0.3.1.tar.gz", hash = "sha256:1885b4878b09f3ff766080d13edb698581d564353cdb04ed8f186a5ade0d786d", size = 1506135, upload-time = "2026-04-14T18:32:03.919Z" }
 
 [[package]]
 name = "soupsieve"

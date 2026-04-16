@@ -61,6 +61,11 @@ dependencies = [
     "cryptography>=46.0.0",
     # Image basics
     "pillow>=10.0.0",
+    # Soul Protocol — runtime imports from soul_protocol.spec.journal and
+    # soul_protocol.engine.journal for fleet installer event emission (#947).
+    # Promoted from optional extra to base dep in v0.3.1 integration work;
+    # the runtime now takes a hard dependency on the journal primitives.
+    "soul-protocol[engine]>=0.3.1",
 ]
 
 [project.optional-dependencies]
@@ -136,6 +141,15 @@ gchat = [
     "google-api-python-client>=2.100.0",
     "google-auth>=2.25.0",
 ]
+drive = [
+    # Google Drive SourceAdapter (zero-copy live federation) — see
+    # src/pocketpaw/connectors/drive/. The client itself runs on httpx (core
+    # dep), but we ship the Google SDK alongside for parity with gchat and
+    # for future DriveIngestAdapter bulk-sync work.
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.25.0",
+    "google-auth-oauthlib>=1.2.0",
+]
 
 # --- Tool extras ---
 image = [
@@ -189,9 +203,10 @@ all-channels = [
     # teams
     "botbuilder-core>=4.16.0",
     "botbuilder-integration-aiohttp>=4.16.0",
-    # gchat
+    # gchat + drive
     "google-api-python-client>=2.100.0",
     "google-auth>=2.25.0",
+    "google-auth-oauthlib>=1.2.0",
 ]
 all-tools = [
     # browser
@@ -265,6 +280,7 @@ all = [
     "botbuilder-integration-aiohttp>=4.16.0",
     "google-api-python-client>=2.100.0",
     "google-auth>=2.25.0",
+    "google-auth-oauthlib>=1.2.0",
     # tools
     "google-genai>=1.0.0",
     "html2text>=2020.1.16",
