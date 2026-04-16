@@ -264,6 +264,17 @@ def _strip_tts_links(text: str) -> str:
     return text.strip()
 
 
+def _format_bytes(n: int) -> str:
+    """Human-readable byte size (e.g. ``414.7 KB``) for prompt injection."""
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n / 1024:.1f} KB"
+    if n < 1024 * 1024 * 1024:
+        return f"{n / (1024 * 1024):.1f} MB"
+    return f"{n / (1024 * 1024 * 1024):.1f} GB"
+
+
 class AgentLoop:
     """
     Main agent execution loop.
@@ -667,8 +678,26 @@ class AgentLoop:
                 Path(p).suffix.lower() in _AUDIO_EXTS for p in (message.media or [])
             )
             if message.media:
-                paths_info = ", ".join(message.media)
-                content += f"\n[Media files on disk: {paths_info}]"
+                # Prefer the richer form when the chat bridge populated metadata
+                # (filename + mime + size per path). The plain path list is still
+                # a correct fallback — e.g. Telegram / Discord / WhatsApp adapters
+                # that don't produce upload records will drop in here.
+                media_info = (message.metadata or {}).get("media_info") or []
+                if media_info:
+                    lines = []
+                    for info in media_info:
+                        filename = info.get("filename") or Path(info.get("path", "")).name or "file"
+                        mime = info.get("mime") or "application/octet-stream"
+                        size = info.get("size")
+                        size_str = _format_bytes(size) if isinstance(size, int) else ""
+                        meta_suffix = f", {size_str}" if size_str else ""
+                        lines.append(
+                            f"- {filename} ({mime}{meta_suffix}) at {info.get('path', '')}"
+                        )
+                    content += "\n\nAttached files:\n" + "\n".join(lines)
+                else:
+                    paths_info = ", ".join(message.media)
+                    content += f"\n[Media files on disk: {paths_info}]"
 
             # 2. Build system prompt + session history concurrently (independent I/O)
             sender_id = message.sender_id

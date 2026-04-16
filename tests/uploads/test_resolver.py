@@ -5,15 +5,18 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from pocketpaw.uploads.file_store import FileRecord, JSONLFileStore
 from pocketpaw.uploads.local import LocalStorageAdapter
 from pocketpaw.uploads.resolver import (
+    ResolvedMedia,
     UploadResolver,
     parse_upload_url,
     resolve_media_paths,
+    resolve_media_with_records,
 )
 
 
@@ -147,3 +150,71 @@ class TestResolveMediaPaths:
 
     def test_empty_list(self, resolver: UploadResolver) -> None:
         assert resolve_media_paths([], resolver=resolver) == []
+
+
+class TestResolveMediaWithRecords:
+    """Async version that returns path + FileRecord for prompt enrichment."""
+
+    @pytest.mark.asyncio
+    async def test_oss_hit_yields_record(self, tmp_upload_root: Path) -> None:
+        adapter = LocalStorageAdapter(root=tmp_upload_root)
+        meta = JSONLFileStore(path=tmp_upload_root / "_idx.jsonl")
+
+        file_id = uuid.uuid4().hex
+        storage_key = f"chat/202604/{file_id}.png"
+        disk = tmp_upload_root / storage_key
+        disk.parent.mkdir(parents=True, exist_ok=True)
+        disk.write_bytes(b"bytes")
+        rec = FileRecord(
+            id=file_id,
+            storage_key=storage_key,
+            filename="screenshot.png",
+            mime="image/png",
+            size=5,
+            owner_id="local",
+            chat_id=None,
+            created=datetime.now(UTC),
+        )
+        meta.save(rec)
+
+        with (
+            patch("pocketpaw.api.v1.uploads._ADAPTER", adapter),
+            patch("pocketpaw.api.v1.uploads._META", meta),
+        ):
+            result = await resolve_media_with_records([f"/api/v1/uploads/{file_id}"])
+
+        assert len(result) == 1
+        assert isinstance(result[0], ResolvedMedia)
+        assert result[0].path == str(disk)
+        assert result[0].record is not None
+        assert result[0].record.filename == "screenshot.png"
+        assert result[0].record.mime == "image/png"
+        assert result[0].record.size == 5
+
+    @pytest.mark.asyncio
+    async def test_passthrough_entry_has_none_record(self, tmp_upload_root: Path) -> None:
+        adapter = LocalStorageAdapter(root=tmp_upload_root)
+        meta = JSONLFileStore(path=tmp_upload_root / "_idx.jsonl")
+
+        with (
+            patch("pocketpaw.api.v1.uploads._ADAPTER", adapter),
+            patch("pocketpaw.api.v1.uploads._META", meta),
+        ):
+            result = await resolve_media_with_records(["/already/local/path.pdf"])
+
+        assert result == [ResolvedMedia(path="/already/local/path.pdf", record=None)]
+
+    @pytest.mark.asyncio
+    async def test_unresolvable_upload_url_dropped(self, tmp_upload_root: Path) -> None:
+        adapter = LocalStorageAdapter(root=tmp_upload_root)
+        meta = JSONLFileStore(path=tmp_upload_root / "_idx.jsonl")
+
+        with (
+            patch("pocketpaw.api.v1.uploads._ADAPTER", adapter),
+            patch("pocketpaw.api.v1.uploads._META", meta),
+        ):
+            result = await resolve_media_with_records(
+                ["/api/v1/uploads/ghost0000000000000000000000000000"]
+            )
+
+        assert result == []
