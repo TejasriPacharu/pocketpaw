@@ -258,3 +258,42 @@ class TestSendMessageResolvesMedia:
         msg = captured["msg"]
         assert msg.content == "look at this"
         assert msg.media == [str(disk), "/already/local/path.pdf"]
+
+        # media_info should carry the FileRecord metadata only for resolved
+        # upload entries (not the passthrough "/already/local/path.pdf").
+        info = msg.metadata.get("media_info")
+        assert isinstance(info, list)
+        assert len(info) == 1
+        assert info[0] == {
+            "path": str(disk),
+            "filename": "x.txt",
+            "mime": "text/plain",
+            "size": 5,
+        }
+
+    @pytest.mark.asyncio
+    async def test_no_media_info_when_no_upload_urls(self, tmp_path, monkeypatch):
+        from pocketpaw.api.v1.chat import _send_message
+        from pocketpaw.api.v1.schemas.chat import ChatRequest
+
+        captured: dict = {}
+
+        class _StubBus:
+            async def publish_inbound(self, msg):
+                captured["msg"] = msg
+
+        from pocketpaw import bus as bus_mod
+
+        monkeypatch.setattr(bus_mod, "get_message_bus", lambda: _StubBus())
+
+        req = ChatRequest(
+            content="plain text",
+            session_id="chat-2",
+            media=["/already/here.pdf"],
+        )
+        await _send_message(req)
+
+        msg = captured["msg"]
+        assert msg.media == ["/already/here.pdf"]
+        # Passthrough entries yield no media_info; key should be absent.
+        assert "media_info" not in msg.metadata
