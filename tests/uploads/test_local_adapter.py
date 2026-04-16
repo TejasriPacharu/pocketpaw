@@ -30,7 +30,9 @@ class TestLocalStorageAdapter:
 
     async def test_put_concatenates_chunks(self, tmp_upload_root: Path):
         adapter = LocalStorageAdapter(root=tmp_upload_root)
-        obj = await adapter.put("k/file.bin", _astream([b"foo", b"bar", b"baz"]), "application/octet-stream")
+        obj = await adapter.put(
+            "k/file.bin", _astream([b"foo", b"bar", b"baz"]), "application/octet-stream"
+        )
         assert obj.size == 9
         assert (tmp_upload_root / "k/file.bin").read_bytes() == b"foobarbaz"
 

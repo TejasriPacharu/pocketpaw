@@ -22,13 +22,16 @@ class StorageAdapter(Protocol):
     Implementations must be safe to call from asyncio contexts.
     """
 
-    async def put(
-        self, key: str, stream: AsyncIterator[bytes], mime: str
-    ) -> StoredObject:
+    async def put(self, key: str, stream: AsyncIterator[bytes], mime: str) -> StoredObject:
         """Persist ``stream`` at ``key``. Returns the canonical ``StoredObject``."""
 
-    async def open(self, key: str) -> AsyncIterator[bytes]:  # pragma: no cover
-        """Yield the stored bytes in chunks. Raises ``NotFound`` if missing."""
+    def open(self, key: str) -> AsyncIterator[bytes]:  # pragma: no cover
+        """Yield the stored bytes in chunks. Raises ``NotFound`` if missing.
+
+        Note: not ``async def`` — implementations are async generator
+        functions (``async def`` + ``yield``), which Python types as
+        ``AsyncIterator[bytes]`` when called (no ``await`` on the call).
+        """
 
     async def delete(self, key: str) -> None:
         """Remove ``key`` if present. Idempotent."""

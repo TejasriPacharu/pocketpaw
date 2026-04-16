@@ -67,7 +67,8 @@ def test_upload_roundtrip(ee_client: TestClient):
     fid = data["uploaded"][0]["id"]
 
     r2 = ee_client.get(
-        f"/api/v1/uploads/{fid}", headers={"x-user": "u1", "x-workspace": "w1"},
+        f"/api/v1/uploads/{fid}",
+        headers={"x-user": "u1", "x-workspace": "w1"},
     )
     assert r2.status_code == 200
     assert r2.content == PNG
@@ -79,7 +80,8 @@ def test_cross_workspace_get_is_404(ee_client: TestClient):
     fid = r.json()["uploaded"][0]["id"]
 
     r2 = ee_client.get(
-        f"/api/v1/uploads/{fid}", headers={"x-user": "u1", "x-workspace": "w2"},
+        f"/api/v1/uploads/{fid}",
+        headers={"x-user": "u1", "x-workspace": "w2"},
     )
     assert r2.status_code == 404
 
@@ -89,7 +91,8 @@ def test_cross_user_same_workspace_is_404(ee_client: TestClient):
     fid = r.json()["uploaded"][0]["id"]
 
     r2 = ee_client.get(
-        f"/api/v1/uploads/{fid}", headers={"x-user": "bob", "x-workspace": "w1"},
+        f"/api/v1/uploads/{fid}",
+        headers={"x-user": "bob", "x-workspace": "w1"},
     )
     assert r2.status_code == 404  # owner-only in v1
 
@@ -99,12 +102,14 @@ def test_delete_then_get_is_404(ee_client: TestClient):
     fid = r.json()["uploaded"][0]["id"]
 
     r2 = ee_client.delete(
-        f"/api/v1/uploads/{fid}", headers={"x-user": "u1", "x-workspace": "w1"},
+        f"/api/v1/uploads/{fid}",
+        headers={"x-user": "u1", "x-workspace": "w1"},
     )
     assert r2.status_code == 204
 
     r3 = ee_client.get(
-        f"/api/v1/uploads/{fid}", headers={"x-user": "u1", "x-workspace": "w1"},
+        f"/api/v1/uploads/{fid}",
+        headers={"x-user": "u1", "x-workspace": "w1"},
     )
     assert r3.status_code == 404
 

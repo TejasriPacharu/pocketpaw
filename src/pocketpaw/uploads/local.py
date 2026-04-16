@@ -32,9 +32,7 @@ class LocalStorageAdapter(StorageAdapter):
             raise AccessDenied(f"key escapes storage root: {key!r}") from exc
         return target
 
-    async def put(
-        self, key: str, stream: AsyncIterator[bytes], mime: str
-    ) -> StoredObject:
+    async def put(self, key: str, stream: AsyncIterator[bytes], mime: str) -> StoredObject:
         final = self._resolve(key)
         final.parent.mkdir(parents=True, exist_ok=True)
         tmp = final.with_name(final.name + ".tmp")

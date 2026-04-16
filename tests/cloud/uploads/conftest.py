@@ -31,4 +31,5 @@ async def beanie_upload_db():
 @pytest.fixture()
 async def store(beanie_upload_db):
     from ee.cloud.uploads.mongo_store import MongoFileStore
+
     return MongoFileStore()

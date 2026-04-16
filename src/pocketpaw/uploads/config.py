@@ -7,30 +7,44 @@ from pathlib import Path
 
 # Mimes safe to render inline (images, pdf, plain text). Everything else gets
 # Content-Disposition: attachment to avoid in-origin HTML/SVG tricks.
-INLINE_MIMES: frozenset[str] = frozenset({
-    "image/png", "image/jpeg", "image/gif", "image/webp",
-    "application/pdf",
-    "text/plain", "text/markdown", "text/csv",
-})
+INLINE_MIMES: frozenset[str] = frozenset(
+    {
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "application/pdf",
+        "text/plain",
+        "text/markdown",
+        "text/csv",
+    }
+)
 
-DEFAULT_ALLOWED_MIMES: frozenset[str] = frozenset({
-    # Images
-    "image/png", "image/jpeg", "image/gif", "image/webp",
-    # Documents
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",         # .xlsx
-    # Text / code
-    "text/plain", "text/markdown", "text/csv",
-    "application/json",
-})
+DEFAULT_ALLOWED_MIMES: frozenset[str] = frozenset(
+    {
+        # Images
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        # Documents
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+        # Text / code
+        "text/plain",
+        "text/markdown",
+        "text/csv",
+        "application/json",
+    }
+)
 
 
 @dataclass
 class UploadSettings:
     """Static configuration for the upload pipeline."""
 
-    max_file_bytes: int = 25 * 1024 * 1024          # 25 MiB
+    max_file_bytes: int = 25 * 1024 * 1024  # 25 MiB
     max_files_per_batch: int = 50
     allowed_mimes: frozenset[str] = field(default_factory=lambda: DEFAULT_ALLOWED_MIMES)
     local_root: Path = field(default_factory=lambda: Path.home() / ".pocketpaw" / "uploads")

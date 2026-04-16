@@ -75,9 +75,7 @@ class UploadService:
         self._meta = meta
         self._cfg = cfg
 
-    async def upload(
-        self, file: UploadFile, owner_id: str, chat_id: str | None
-    ) -> FileRecord:
+    async def upload(self, file: UploadFile, owner_id: str, chat_id: str | None) -> FileRecord:
         result = await self.upload_many([file], owner_id, chat_id)
         if result.failed:
             f = result.failed[0]
@@ -85,14 +83,15 @@ class UploadService:
         return result.uploaded[0]
 
     async def upload_many(
-        self, files: list[UploadFile], owner_id: str, chat_id: str | None,
+        self,
+        files: list[UploadFile],
+        owner_id: str,
+        chat_id: str | None,
     ) -> BulkUploadResult:
         if not files:
             raise ValueError("empty upload batch")
         if len(files) > self._cfg.max_files_per_batch:
-            raise ValueError(
-                f"too many files: {len(files)} > {self._cfg.max_files_per_batch}"
-            )
+            raise ValueError(f"too many files: {len(files)} > {self._cfg.max_files_per_batch}")
 
         uploaded: list[FileRecord] = []
         failed: list[FailedUpload] = []
@@ -102,18 +101,33 @@ class UploadService:
                 rec = await self._upload_one(file, owner_id, chat_id)
                 uploaded.append(rec)
             except TooLarge as e:
-                failed.append(FailedUpload(filename=_basename(file.filename), reason=str(e), code="too_large"))
+                failed.append(
+                    FailedUpload(filename=_basename(file.filename), reason=str(e), code="too_large")
+                )
             except UnsupportedMime as e:
-                failed.append(FailedUpload(filename=_basename(file.filename), reason=str(e), code="unsupported_mime"))
+                failed.append(
+                    FailedUpload(
+                        filename=_basename(file.filename), reason=str(e), code="unsupported_mime"
+                    )
+                )
             except EmptyFile as e:
-                failed.append(FailedUpload(filename=_basename(file.filename), reason=str(e), code="empty"))
+                failed.append(
+                    FailedUpload(filename=_basename(file.filename), reason=str(e), code="empty")
+                )
             except StorageFailure as e:
-                failed.append(FailedUpload(filename=_basename(file.filename), reason=str(e), code="storage_error"))
+                failed.append(
+                    FailedUpload(
+                        filename=_basename(file.filename), reason=str(e), code="storage_error"
+                    )
+                )
 
         return BulkUploadResult(uploaded=uploaded, failed=failed)
 
     async def _upload_one(
-        self, file: UploadFile, owner_id: str, chat_id: str | None,
+        self,
+        file: UploadFile,
+        owner_id: str,
+        chat_id: str | None,
     ) -> FileRecord:
         head = await file.read(_SNIFF_BYTES)
         if not head:

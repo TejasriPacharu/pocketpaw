@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -52,10 +51,13 @@ class TestEEUploadService:
         from ee.cloud.uploads.service import EEUploadService
 
         svc = EEUploadService(
-            adapter=_MemAdapter(), meta=store, cfg=UploadSettings(local_root=tmp_path),
+            adapter=_MemAdapter(),
+            meta=store,
+            cfg=UploadSettings(local_root=tmp_path),
         )
-        rec = await svc.upload(_upload(PNG, "cat.png", "image/png"),
-                               owner_id="u1", chat_id="c1", workspace="w1")
+        rec = await svc.upload(
+            _upload(PNG, "cat.png", "image/png"), owner_id="u1", chat_id="c1", workspace="w1"
+        )
         assert rec.owner_id == "u1"
         got = await store.get_scoped(rec.id, workspace="w1")
         assert got is not None
@@ -64,10 +66,13 @@ class TestEEUploadService:
         from ee.cloud.uploads.service import EEUploadService
 
         svc = EEUploadService(
-            adapter=_MemAdapter(), meta=store, cfg=UploadSettings(local_root=tmp_path),
+            adapter=_MemAdapter(),
+            meta=store,
+            cfg=UploadSettings(local_root=tmp_path),
         )
-        rec = await svc.upload(_upload(PNG, "cat.png", "image/png"),
-                               owner_id="u1", chat_id="c1", workspace="w1")
+        rec = await svc.upload(
+            _upload(PNG, "cat.png", "image/png"), owner_id="u1", chat_id="c1", workspace="w1"
+        )
         with pytest.raises(NotFound):
             await svc.stream(rec.id, requester_id="u1", workspace="w2")
 
@@ -76,10 +81,13 @@ class TestEEUploadService:
 
         adapter = _MemAdapter()
         svc = EEUploadService(
-            adapter=adapter, meta=store, cfg=UploadSettings(local_root=tmp_path),
+            adapter=adapter,
+            meta=store,
+            cfg=UploadSettings(local_root=tmp_path),
         )
-        rec = await svc.upload(_upload(PNG, "cat.png", "image/png"),
-                               owner_id="u1", chat_id="c1", workspace="w1")
+        rec = await svc.upload(
+            _upload(PNG, "cat.png", "image/png"), owner_id="u1", chat_id="c1", workspace="w1"
+        )
         got_rec, it = await svc.stream(rec.id, requester_id="u1", workspace="w1")
         chunks = [c async for c in it]
         assert b"".join(chunks) == PNG
@@ -89,10 +97,13 @@ class TestEEUploadService:
         from ee.cloud.uploads.service import EEUploadService
 
         svc = EEUploadService(
-            adapter=_MemAdapter(), meta=store, cfg=UploadSettings(local_root=tmp_path),
+            adapter=_MemAdapter(),
+            meta=store,
+            cfg=UploadSettings(local_root=tmp_path),
         )
-        rec = await svc.upload(_upload(PNG, "cat.png", "image/png"),
-                               owner_id="u1", chat_id="c1", workspace="w1")
+        rec = await svc.upload(
+            _upload(PNG, "cat.png", "image/png"), owner_id="u1", chat_id="c1", workspace="w1"
+        )
         await svc.delete(rec.id, requester_id="u1", workspace="w1")
         with pytest.raises(NotFound):
             await svc.stream(rec.id, requester_id="u1", workspace="w1")
@@ -101,7 +112,9 @@ class TestEEUploadService:
         from ee.cloud.uploads.service import EEUploadService
 
         svc = EEUploadService(
-            adapter=_MemAdapter(), meta=store, cfg=UploadSettings(local_root=tmp_path),
+            adapter=_MemAdapter(),
+            meta=store,
+            cfg=UploadSettings(local_root=tmp_path),
         )
         files = [
             _upload(PNG, "a.png", "image/png"),

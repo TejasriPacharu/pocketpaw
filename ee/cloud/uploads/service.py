@@ -51,7 +51,11 @@ class EEUploadService:
         self._oss = UploadService(adapter=adapter, meta=_NullMeta(), cfg=cfg)  # type: ignore[arg-type]
 
     async def upload(
-        self, file: UploadFile, owner_id: str, chat_id: str | None, workspace: str,
+        self,
+        file: UploadFile,
+        owner_id: str,
+        chat_id: str | None,
+        workspace: str,
     ) -> FileRecord:
         result = await self.upload_many([file], owner_id, chat_id, workspace)
         if result.failed:
@@ -60,7 +64,11 @@ class EEUploadService:
         return result.uploaded[0]
 
     async def upload_many(
-        self, files: list[UploadFile], owner_id: str, chat_id: str | None, workspace: str,
+        self,
+        files: list[UploadFile],
+        owner_id: str,
+        chat_id: str | None,
+        workspace: str,
     ) -> BulkUploadResult:
         # Delegate validation + adapter writes; metadata is discarded inside OSS
         result = await self._oss.upload_many(files, owner_id, chat_id)
@@ -70,7 +78,10 @@ class EEUploadService:
         return result
 
     async def stream(
-        self, file_id: str, requester_id: str, workspace: str,
+        self,
+        file_id: str,
+        requester_id: str,
+        workspace: str,
     ) -> tuple[FileRecord, AsyncIterator[bytes]]:
         rec = await self._meta.get_scoped(file_id, workspace=workspace)
         if rec is None:
@@ -81,7 +92,10 @@ class EEUploadService:
         return rec, self._adapter.open(rec.storage_key)
 
     async def delete(
-        self, file_id: str, requester_id: str, workspace: str,
+        self,
+        file_id: str,
+        requester_id: str,
+        workspace: str,
     ) -> None:
         rec = await self._meta.get_scoped(file_id, workspace=workspace)
         if rec is None:

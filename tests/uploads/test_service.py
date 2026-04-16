@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -18,8 +17,8 @@ from pocketpaw.uploads.errors import (
 from pocketpaw.uploads.file_store import JSONLFileStore
 from pocketpaw.uploads.service import UploadService
 
-
 # --- Fake adapter --------------------------------------------------------
+
 
 class _FakeAdapter(StorageAdapter):
     def __init__(self) -> None:
@@ -67,6 +66,7 @@ def service(tmp_path: Path):
 
 
 # --- Tests ---------------------------------------------------------------
+
 
 class TestUploadServiceSingle:
     async def test_happy_path_returns_record(self, service):

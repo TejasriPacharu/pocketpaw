@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-import pytest
-
 from pocketpaw.uploads.file_store import FileRecord, JSONLFileStore
 
 
@@ -56,14 +54,16 @@ class TestJSONLFileStore:
 
     def test_corrupt_line_is_skipped(self, tmp_path: Path):
         path = tmp_path / "idx.jsonl"
-        path.write_text('{"op": "save", "record": {"id": "a", "storage_key": "k", "filename": "a", '
-                        '"mime": "text/plain", "size": 1, "owner_id": "u", "chat_id": null, '
-                        '"created": "2026-04-16T12:00:00+00:00"}}\n'
-                        'THIS IS NOT JSON\n'
-                        '{"op": "save", "record": {"id": "b", "storage_key": "k2", "filename": "b", '
-                        '"mime": "text/plain", "size": 1, "owner_id": "u", "chat_id": null, '
-                        '"created": "2026-04-16T12:00:00+00:00"}}\n',
-                        encoding="utf-8")
+        path.write_text(
+            '{"op": "save", "record": {"id": "a", "storage_key": "k", "filename": "a", '
+            '"mime": "text/plain", "size": 1, "owner_id": "u", "chat_id": null, '
+            '"created": "2026-04-16T12:00:00+00:00"}}\n'
+            "THIS IS NOT JSON\n"
+            '{"op": "save", "record": {"id": "b", "storage_key": "k2", "filename": "b", '
+            '"mime": "text/plain", "size": 1, "owner_id": "u", "chat_id": null, '
+            '"created": "2026-04-16T12:00:00+00:00"}}\n',
+            encoding="utf-8",
+        )
         store = JSONLFileStore(path=path)
         assert store.get("a") is not None
         assert store.get("b") is not None

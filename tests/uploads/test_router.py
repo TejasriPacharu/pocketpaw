@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -14,17 +13,16 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"body"
 def client(tmp_path: Path, monkeypatch):
     """Build an app with the uploads router pointed at a tmp dir."""
     # Patch module-level globals BEFORE importing the router
-    import pocketpaw.uploads.config as cfg
     import pocketpaw.api.v1.uploads as uploads_module
 
     root = tmp_path / "u"
     root.mkdir()
 
     # Rebuild module-level service against tmp dirs
-    from pocketpaw.uploads.local import LocalStorageAdapter
-    from pocketpaw.uploads.file_store import JSONLFileStore
-    from pocketpaw.uploads.service import UploadService
     from pocketpaw.uploads.config import UploadSettings
+    from pocketpaw.uploads.file_store import JSONLFileStore
+    from pocketpaw.uploads.local import LocalStorageAdapter
+    from pocketpaw.uploads.service import UploadService
 
     test_cfg = UploadSettings(local_root=root)
     test_adapter = LocalStorageAdapter(root=root)
@@ -95,11 +93,16 @@ def test_docx_gets_attachment_disposition(client: TestClient):
     docx = b"PK\x03\x04" + b"rest"
     r = client.post(
         "/api/v1/uploads",
-        files=[("files", (
-            "doc.docx",
-            docx,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ))],
+        files=[
+            (
+                "files",
+                (
+                    "doc.docx",
+                    docx,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
+            )
+        ],
     )
     fid = r.json()["uploaded"][0]["id"]
     r2 = client.get(f"/api/v1/uploads/{fid}")
