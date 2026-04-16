@@ -376,13 +376,18 @@ async def _auth_dispatch(request: Request) -> Response | None:
     current_token = get_access_token()
 
     is_valid = False
+    # full_access means "bypass scope checks" (issue #888). Set by the
+    # master/session/cookie/localhost paths — NOT by API key or OAuth auth.
+    request.state.full_access = False
 
     # 1. Check Query Param (master token or session token)
     if token:
         if hmac.compare_digest(token, current_token):
             is_valid = True
+            request.state.full_access = True
         elif ":" in token and verify_session_token(token, current_token):
             is_valid = True
+            request.state.full_access = True
 
     # 2. Check Header
     elif auth_header:
@@ -391,8 +396,10 @@ async def _auth_dispatch(request: Request) -> Response | None:
         )
         if hmac.compare_digest(bearer_value, current_token):
             is_valid = True
+            request.state.full_access = True
         elif ":" in bearer_value and verify_session_token(bearer_value, current_token):
             is_valid = True
+            request.state.full_access = True
 
     # 3. Check HTTP-only session cookie
     if not is_valid:
@@ -400,8 +407,10 @@ async def _auth_dispatch(request: Request) -> Response | None:
         if cookie_token:
             if hmac.compare_digest(cookie_token, current_token):
                 is_valid = True
+                request.state.full_access = True
             elif ":" in cookie_token and verify_session_token(cookie_token, current_token):
                 is_valid = True
+                request.state.full_access = True
 
     # 4. Check API key (pp_* prefix)
     if not is_valid:
@@ -464,6 +473,7 @@ async def _auth_dispatch(request: Request) -> Response | None:
     # 6. Allow genuine localhost (not tunneled proxies)
     if not is_valid and _is_genuine_localhost(request):
         is_valid = True
+        request.state.full_access = True
 
     # Allow frontend assets (/, /static/*, /uploads/*) through for SPA bootstrap.
     if (

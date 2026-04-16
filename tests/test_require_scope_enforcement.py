@@ -9,6 +9,10 @@ from fastapi.testclient import TestClient
 
 from pocketpaw.api.deps import require_scope
 
+# Every test in this module needs the real fail-closed behaviour — opt out
+# of the _TESTING_FULL_ACCESS bypass that the root conftest sets up.
+pytestmark = pytest.mark.enforce_scope
+
 
 class _APIKey:
     def __init__(self, scopes: list[str]):
