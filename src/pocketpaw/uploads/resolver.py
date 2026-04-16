@@ -113,11 +113,71 @@ def default_resolver() -> UploadResolver:
     return UploadResolver(adapter=_ADAPTER, meta=_META)
 
 
+async def _resolve_via_ee_mongo(file_id: str) -> Path | None:
+    """Fallback: look up ``file_id`` in the EE Mongo store with no workspace
+    filter. Returns ``None`` if EE isn't installed or Mongo can't reach the id.
+
+    Intended for single-user self-hosted deployments where the EE router is
+    mounted (uploads land in Mongo) but chat still goes through the OSS
+    endpoint. Multi-tenant cloud chat should route through EE with explicit
+    workspace context instead of calling this.
+    """
+    try:
+        from ee.cloud.uploads.router import _ADAPTER as EE_ADAPTER
+        from ee.cloud.uploads.router import _META as EE_META
+    except Exception:
+        return None
+
+    try:
+        rec = await EE_META.get_unscoped(file_id)
+    except Exception:
+        logger.exception("EE mongo lookup failed for file_id=%s", file_id)
+        return None
+    if rec is None:
+        return None
+    try:
+        return EE_ADAPTER.local_path(rec.storage_key)
+    except Exception:
+        logger.exception(
+            "EE adapter.local_path failed for file_id=%s storage_key=%s",
+            file_id,
+            rec.storage_key,
+        )
+        return None
+
+
+async def resolve_media_paths_any(media: list[str]) -> list[str]:
+    """Async counterpart to :func:`resolve_media_paths` that falls back to
+    the EE Mongo store when the OSS JSONL lookup misses.
+
+    Covers the common self-hosted EE case: uploads go through the EE
+    workspace-scoped router (Mongo), but chat still goes through the OSS
+    `/chat/stream` endpoint (no auth context). Without this fallback, the
+    agent would never see files uploaded via the EE path.
+    """
+    resolver = default_resolver()
+    out: list[str] = []
+    for entry in media:
+        fid = parse_upload_url(entry)
+        if fid is None:
+            out.append(entry)
+            continue
+        path = resolver.resolve(entry)
+        if path is None:
+            path = await _resolve_via_ee_mongo(fid)
+        if path is None:
+            logger.warning("dropping unresolvable upload entry: %s", entry)
+            continue
+        out.append(str(path))
+    return out
+
+
 # Keep JSONLFileStore importable for type-friendly call sites.
 __all__ = [
     "UploadResolver",
     "default_resolver",
     "parse_upload_url",
     "resolve_media_paths",
+    "resolve_media_paths_any",
     "JSONLFileStore",
 ]

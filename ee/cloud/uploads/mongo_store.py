@@ -30,6 +30,24 @@ class MongoFileStore:
             FileUpload.workspace == workspace,
             FileUpload.deleted_at == None,  # noqa: E711 beanie needs literal None
         )
+        return self._to_record(doc)
+
+    async def get_unscoped(self, file_id: str) -> FileRecord | None:
+        """Find a live record by file_id without workspace filter.
+
+        Intended for call sites that lack tenant context (e.g. the OSS chat
+        bridge in single-user self-hosted deployments). Multi-tenant cloud
+        chat flows should use ``get_scoped`` with an authenticated workspace
+        and never call this.
+        """
+        doc = await FileUpload.find_one(
+            FileUpload.file_id == file_id,
+            FileUpload.deleted_at == None,  # noqa: E711
+        )
+        return self._to_record(doc)
+
+    @staticmethod
+    def _to_record(doc: FileUpload | None) -> FileRecord | None:
         if doc is None:
             return None
         return FileRecord(
