@@ -1,8 +1,20 @@
 """Chat persistence bridge — saves runtime WebSocket messages to MongoDB.
 
-Subscribes to the message bus outbound channel to persist agent responses.
-User messages are persisted via save_user_message() called from the WS adapter.
-This ensures all chat history is in MongoDB regardless of chat system.
+Contract: the WebSocket ``chat_id`` IS the ``Session.sessionId``. Clients that
+want history must create a session via ``POST /api/v1/sessions`` first and
+use the returned ``sessionId`` as their WS chat_id.
+
+Messages land in the unified ``messages`` collection with ``context_type``
+matching the session:
+
+- Pocket session (default) → ``context_type="pocket"``, ``session_key=sessionId``.
+- Group session (``Session.group`` set) → ``context_type="group"``,
+  ``group=Session.group``. Rich features (mentions, reactions, threading)
+  go through ``POST /api/v1/chat/groups/{group_id}/messages`` instead.
+
+If no ``Session`` doc exists yet, a pocket session is auto-created so
+messages have a stable key. This keeps the "start chatting, make it a
+session later" experience working.
 """
 
 from __future__ import annotations
@@ -12,9 +24,10 @@ from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
-# Track active sessions: websocket chat_id → cloud session info
-_active_sessions: dict[str, dict] = {}
-# Accumulate streaming chunks per session
+# In-memory cache of session metadata so we don't re-query Mongo on every
+# message. Keyed by chat_id (== Session.sessionId).
+_session_cache: dict[str, dict] = {}
+# Accumulate streaming chunks per chat until stream_end.
 _stream_buffers: dict[str, str] = {}
 
 
@@ -25,7 +38,7 @@ def register_chat_persistence() -> None:
 
         bus = get_bus()
         if bus is None:
-            logger.debug("Message bus not available, chat persistence not registered")
+            logger.warning("Message bus not available, chat persistence not registered")
             return
 
         from pocketpaw.bus.events import Channel
@@ -33,27 +46,19 @@ def register_chat_persistence() -> None:
         bus.subscribe_outbound(Channel.WEBSOCKET, _on_outbound_message)
         logger.info("Chat persistence bridge registered")
     except Exception:
-        logger.debug("Failed to register chat persistence", exc_info=True)
+        logger.exception("Failed to register chat persistence")
 
 
 async def save_user_message(chat_id: str, content: str) -> None:
-    """Called by the WebSocket adapter to persist a user message."""
+    """Persist a user chat message. ``chat_id`` must be the Session.sessionId."""
     try:
-        session_info = await _ensure_cloud_session(chat_id)
-        if not session_info:
+        ctx = await _resolve_session_context(chat_id)
+        if not ctx:
+            logger.warning("no session context for chat_id=%s — user message dropped", chat_id)
             return
-
-        from ee.cloud.models.message import Message
-
-        msg = Message(
-            group=session_info["group_id"],
-            sender=session_info["user_id"],
-            sender_type="user",
-            content=content,
-        )
-        await msg.insert()
+        await _write_message(ctx, role="user", content=content, sender_type="user")
     except Exception:
-        logger.debug("Failed to persist user message", exc_info=True)
+        logger.exception("Failed to persist user message")
 
 
 async def _on_outbound_message(message) -> None:
@@ -70,116 +75,130 @@ async def _on_outbound_message(message) -> None:
             if not full_text.strip():
                 return
 
-            session_info = await _ensure_cloud_session(chat_id)
-            if not session_info:
+            ctx = await _resolve_session_context(chat_id)
+            if not ctx:
+                logger.warning(
+                    "no session context for chat_id=%s — agent message dropped", chat_id
+                )
                 return
-
-            from ee.cloud.models.message import Message
-
-            msg = Message(
-                group=session_info["group_id"],
-                sender=None,
-                sender_type="agent",
-                content=full_text,
+            await _write_message(
+                ctx, role="assistant", content=full_text, sender_type="agent"
             )
-            await msg.insert()
-
-            # Touch session activity
-            from ee.cloud.models.session import Session
-
-            session_doc = await Session.find_one(Session.sessionId == f"websocket_{chat_id}")
-            if session_doc:
-                session_doc.lastActivity = datetime.now(UTC)
-                session_doc.messageCount += 1
-                await session_doc.save()
             return
 
         # Non-streaming content accumulation
         if message.content and not message.is_stream_chunk:
             _stream_buffers[chat_id] = _stream_buffers.get(chat_id, "") + (message.content or "")
     except Exception:
-        logger.debug("Failed to persist outbound message", exc_info=True)
+        logger.exception("Failed to persist outbound message")
 
 
-async def _ensure_cloud_session(chat_id: str) -> dict | None:
-    """Find or create a cloud session + group for a runtime WebSocket chat."""
-    if chat_id in _active_sessions:
-        return _active_sessions[chat_id]
+# ---------------------------------------------------------------------------
+# Internals
+# ---------------------------------------------------------------------------
 
-    try:
-        from ee.cloud.models.group import Group
-        from ee.cloud.models.session import Session
 
-        session_id = f"websocket_{chat_id}"
+async def _resolve_session_context(chat_id: str) -> dict | None:
+    """Return the session context for a chat_id.
 
-        # Check if session already exists
-        session = await Session.find_one(Session.sessionId == session_id)
-        if session and session.group:
-            info = {
-                "session_id": str(session.id),
-                "group_id": session.group,
-                "user_id": session.owner,
-            }
-            _active_sessions[chat_id] = info
-            return info
+    Looks up (or creates) the Session doc where ``sessionId == chat_id`` and
+    returns a dict describing how a message should be written:
 
-        # No session yet — we need a workspace context
-        # Try to get the first available workspace
-        from ee.cloud.models.user import User
+        {
+            "session_id": ObjectId hex,
+            "session_key": chat_id,                 # == sessionId
+            "is_group": bool,
+            "group": group_id | None,               # only when is_group
+            "owner": user_id,
+            "workspace": workspace_id,
+        }
 
-        users = await User.find({"workspaces": {"$ne": []}}).limit(1).to_list()
-        if not users:
+    Returns None only when no user exists yet (fresh install, no registered
+    accounts) — in that case persistence is silently skipped.
+    """
+    if chat_id in _session_cache:
+        return _session_cache[chat_id]
+
+    from ee.cloud.models.session import Session
+
+    session = await Session.find_one(Session.sessionId == chat_id)
+    if session is None:
+        # Auto-create a pocket session so messages have a key.
+        session = await _auto_create_pocket_session(chat_id)
+        if session is None:
             return None
 
-        user = users[0]
-        workspace_id = user.workspaces[0].workspace if user.workspaces else None
-        if not workspace_id:
-            return None
+    ctx = {
+        "session_id": str(session.id),
+        "session_key": session.sessionId,
+        "is_group": session.context_type == "group" and bool(session.group),
+        "group": session.group,
+        "owner": session.owner,
+        "workspace": session.workspace,
+    }
+    _session_cache[chat_id] = ctx
+    return ctx
 
-        user_id = str(user.id)
 
-        # Create a runtime chat group if needed
-        if not session:
-            # Create group for this runtime session
-            group = Group(
-                workspace=workspace_id,
-                name="PocketPaw Chat",
-                type="dm",
-                members=[user_id],
-                owner=user_id,
-            )
-            await group.insert()
+async def _auto_create_pocket_session(chat_id: str):
+    """Create a pocket Session doc for ``chat_id`` when none exists.
 
-            session = Session(
-                sessionId=session_id,
-                workspace=workspace_id,
-                owner=user_id,
-                title="PocketPaw Chat",
-                group=str(group.id),
-            )
-            await session.insert()
+    Picks the first user with a workspace as owner — matches the old
+    behaviour for single-user dev setups. In multi-user deployments, clients
+    are expected to create sessions via ``POST /api/v1/sessions`` first.
+    """
+    from ee.cloud.models.session import Session
+    from ee.cloud.models.user import User
 
-            info = {"session_id": str(session.id), "group_id": str(group.id), "user_id": user_id}
-        else:
-            # Session exists but no group — create one
-            group = Group(
-                workspace=workspace_id,
-                name="PocketPaw Chat",
-                type="dm",
-                members=[user_id],
-                owner=user_id,
-            )
-            await group.insert()
-            session.group = str(group.id)
-            await session.save()
-
-            info = {"session_id": str(session.id), "group_id": str(group.id), "user_id": user_id}
-
-        _active_sessions[chat_id] = info
-        logger.info(
-            "Created cloud session for runtime chat: %s → group %s", session_id, info["group_id"]
-        )
-        return info
-    except Exception:
-        logger.debug("Failed to ensure cloud session for %s", chat_id, exc_info=True)
+    users = await User.find({"workspaces": {"$ne": []}}).limit(1).to_list()
+    if not users:
+        logger.warning("auto_create_pocket_session: no user with a workspace")
         return None
+
+    user = users[0]
+    workspace_id = user.workspaces[0].workspace if user.workspaces else None
+    if not workspace_id:
+        return None
+
+    session = Session(
+        sessionId=chat_id,
+        context_type="pocket",
+        workspace=workspace_id,
+        owner=str(user.id),
+        title="Chat",
+    )
+    await session.insert()
+    logger.info("auto-created pocket session: sessionId=%s owner=%s", chat_id, user.id)
+    return session
+
+
+async def _write_message(ctx: dict, *, role: str, content: str, sender_type: str) -> None:
+    """Insert a Message in the right context and touch the Session."""
+    from ee.cloud.models.message import Message
+    from ee.cloud.models.session import Session
+
+    if ctx["is_group"]:
+        msg = Message(
+            context_type="group",
+            group=ctx["group"],
+            sender=ctx["owner"] if sender_type == "user" else None,
+            sender_type=sender_type,
+            content=content,
+        )
+    else:
+        msg = Message(
+            context_type="pocket",
+            session_key=ctx["session_key"],
+            role=role,  # type: ignore[arg-type]
+            sender=ctx["owner"] if sender_type == "user" else None,
+            sender_type=sender_type,
+            content=content,
+        )
+    await msg.insert()
+
+    # Touch session activity so the UI list reflects recency.
+    session_doc = await Session.find_one(Session.sessionId == ctx["session_key"])
+    if session_doc:
+        session_doc.lastActivity = datetime.now(UTC)
+        session_doc.messageCount += 1
+        await session_doc.save()

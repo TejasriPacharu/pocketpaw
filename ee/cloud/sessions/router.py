@@ -110,25 +110,15 @@ async def delete_session(
 async def get_session_history(
     session_id: str,
     limit: int = 50,
+    user_id: str = Depends(current_user_id),
 ) -> dict:
-    """Get session history. Tries MongoDB session first, falls back to runtime."""
-    # Try runtime directly (handles both general and pocket sessions)
+    """Return session history from the unified Mongo messages store."""
+    from ee.cloud.shared.errors import NotFound
+
     try:
-        from pocketpaw.memory import get_memory_manager
-
-        manager = get_memory_manager()
-        sid = session_id
-        for key in [sid, sid.replace("_", ":", 1), f"websocket:{sid}"]:
-            try:
-                entries = await manager.get_session_history(key, limit=limit)
-                if entries:
-                    return {"messages": entries}
-            except Exception:
-                continue
-    except Exception:
-        pass
-
-    return {"messages": []}
+        return await SessionService.get_history(session_id, user_id, limit=limit)
+    except NotFound:
+        return {"messages": []}
 
 
 @router.post("/{session_id}/touch", status_code=204)
