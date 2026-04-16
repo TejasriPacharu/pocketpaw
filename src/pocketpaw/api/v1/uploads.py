@@ -78,7 +78,13 @@ async def download(file_id: str) -> StreamingResponse:
     return StreamingResponse(
         it,
         media_type=rec.mime,
-        headers={"Content-Disposition": f'{disposition}; filename="{rec.filename}"'},
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{rec.filename}"',
+            # Prevent browsers from MIME-sniffing past the declared type.
+            # Defense-in-depth against content-type confusion for uploads that
+            # are labeled as text/* but hold unexpected bytes.
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

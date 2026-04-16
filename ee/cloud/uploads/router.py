@@ -82,7 +82,10 @@ async def download(
     return StreamingResponse(
         it,
         media_type=rec.mime,
-        headers={"Content-Disposition": f'{disposition}; filename="{rec.filename}"'},
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{rec.filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

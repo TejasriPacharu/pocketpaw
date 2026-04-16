@@ -200,8 +200,10 @@ class UploadService:
             raise NotFound()
         if rec.owner_id != requester_id:
             raise NotFound()
-        await self._adapter.delete(rec.storage_key)
+        # Tombstone metadata before unlinking the blob so a mid-op crash
+        # leaves an orphan blob (cleanable) rather than a dangling record.
         self._meta.soft_delete(file_id)
+        await self._adapter.delete(rec.storage_key)
 
 
 def _basename(name: str | None) -> str:

@@ -102,5 +102,8 @@ class EEUploadService:
             raise NotFound()
         if rec.owner_id != requester_id:
             raise NotFound()
-        await self._adapter.delete(rec.storage_key)
+        # Mark deleted in Mongo first — if the adapter call fails, the record
+        # stays tombstoned and the blob becomes an orphan (picked up by a
+        # future cleanup job) rather than silently surviving visibility.
         await self._meta.soft_delete_scoped(file_id, workspace=workspace)
+        await self._adapter.delete(rec.storage_key)
