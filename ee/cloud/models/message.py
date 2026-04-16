@@ -68,6 +68,13 @@ class Message(TimestampedDocument):
     session_key: str | None = None
     role: PocketRole | None = None
 
+    # --- Tenant scope --------------------------------------------------
+    # Stamped on every row so multi-tenant ee deployments can scope reads
+    # at the adapter layer. For pocket rows the adapter resolves it from
+    # the linked Session.workspace at write time; for group rows callers
+    # populate it from the group's workspace.
+    workspace_id: str | None = None
+
     @model_validator(mode="after")
     def _enforce_context(self) -> Message:
         # Infer context when unset so legacy constructors (group=..., sender=...)
@@ -106,6 +113,7 @@ class Message(TimestampedDocument):
         name = "messages"
         indexes = [
             [("context_type", 1), ("group", 1), ("createdAt", -1)],
+            [("workspace_id", 1), ("session_key", 1), ("createdAt", 1)],
             [("session_key", 1), ("createdAt", 1)],
             [("group", 1), ("createdAt", -1)],
         ]

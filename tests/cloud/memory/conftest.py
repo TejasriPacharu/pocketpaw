@@ -1,8 +1,8 @@
 """Fixtures for MongoMemoryStore tests.
 
-Uses a real MongoDB on localhost — matches the pattern in
-tests/cloud/test_e2e_api.py. Each test gets a uniquely-named database that is
-dropped on teardown.
+Uses ``mongomock-motor`` so the suite runs in CI without a real MongoDB
+service. Each test gets an isolated in-memory database via a uniquely-named
+mock client.
 """
 
 from __future__ import annotations
@@ -14,22 +14,34 @@ import pytest
 
 @pytest.fixture()
 async def beanie_memory_db():
-    """Initialize Beanie against a throwaway test database for each test."""
+    """Initialize Beanie against an in-memory mongomock-motor database.
+
+    Beanie >=1.26 calls ``database.list_collection_names(authorizedCollections=True,
+    nameOnly=True)``; mongomock-motor's stub doesn't accept those kwargs.
+    We wrap the method to drop unknown kwargs so the suite runs in CI
+    without a real MongoDB service.
+    """
     from beanie import init_beanie
-    from motor.motor_asyncio import AsyncIOMotorClient
+    from mongomock_motor import AsyncMongoMockClient
 
     from ee.cloud.memory.documents import MemoryFactDoc
     from ee.cloud.models import ALL_DOCUMENTS
 
     db_name = f"test_memory_{uuid.uuid4().hex[:8]}"
-    conn_str = f"mongodb://localhost:27017/{db_name}"
-    client = AsyncIOMotorClient("mongodb://localhost:27017")
-    await init_beanie(
-        connection_string=conn_str,
-        document_models=[*ALL_DOCUMENTS, MemoryFactDoc],
-    )
-    yield client[db_name]
-    await client.drop_database(db_name)
+    client = AsyncMongoMockClient()
+    db = client[db_name]
+
+    original = db.list_collection_names
+
+    async def _safe_list_collection_names(*_args, **_kwargs):
+        # mongomock-motor doesn't honour authorizedCollections / nameOnly;
+        # the no-arg call returns the same list we need for Beanie init.
+        return await original()
+
+    db.list_collection_names = _safe_list_collection_names  # type: ignore[method-assign]
+
+    await init_beanie(database=db, document_models=[*ALL_DOCUMENTS, MemoryFactDoc])
+    yield db
 
 
 @pytest.fixture()

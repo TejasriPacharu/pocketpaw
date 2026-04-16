@@ -7,10 +7,21 @@ entries live in ``memory_facts``.
 Session metadata (title, lastActivity, messageCount) remains the responsibility
 of the API layer (`SessionService`). This store only writes message rows —
 the `sessions` collection stays user-facing / UI-owned.
+
+Tenant scope
+------------
+Every row is stamped with a ``workspace_id`` so multi-tenant ee deployments
+can isolate reads. For SESSION rows the adapter resolves it from the linked
+Session.workspace at write time. For LONG_TERM / DAILY rows callers populate
+``entry.metadata["workspace_id"]``. Reads expose ``workspace_id`` as a
+parameter on the adapter-specific helpers (``list_facts_in_workspace``,
+``get_session_in_workspace``); the protocol-level methods stay unscoped to
+preserve the ``MemoryStoreProtocol`` contract for OSS callers.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, datetime
 
@@ -22,9 +33,18 @@ from ee.cloud.models.message import Message
 from ee.cloud.models.session import Session
 from pocketpaw.memory.protocol import MemoryEntry, MemoryType  # type: ignore[import-untyped]
 
+logger = logging.getLogger(__name__)
+
+# Channels the pocketpaw bus emits as the prefix of `InboundMessage.session_key`
+# (``f"{channel.value}:{chat_id}"``). Kept in sync with
+# ``pocketpaw.bus.events.Channel`` — when a new adapter is added there, append
+# its value here. ``_normalize_session_key`` logs a warning when it sees a
+# colon-form prefix it doesn't recognise so the drift is visible.
+_KNOWN_BUS_CHANNELS = frozenset({"websocket", "telegram", "discord", "slack", "whatsapp", "cli"})
+
 
 def _normalize_session_key(key: str) -> str:
-    """Normalize bus-style session keys to the underscore form used by Session.sessionId.
+    """Translate bus-style session keys to the underscore form used by Session.sessionId.
 
     The pocketpaw message bus forms session keys as ``"{channel}:{chat_id}"``
     (colon), while ``Session.sessionId`` and the UI use the safe-key form
@@ -32,21 +52,30 @@ def _normalize_session_key(key: str) -> str:
     joinable with ``sessions.sessionId``, we rewrite the first ``":"`` to
     ``"_"`` on every read/write — but only when the prefix matches a known
     channel so unrelated keys (user-supplied pocket session keys, etc.) are
-    left untouched.
+    left untouched. Unknown colon-prefixed keys log a warning so a missing
+    channel is visible rather than silent.
     """
     if ":" not in key:
         return key
     channel, _, rest = key.partition(":")
-    # Mirror the channels the bus currently emits. Keeping this list explicit
-    # avoids accidentally rewriting application-level keys that contain ``":"``.
-    if channel in {"websocket", "telegram", "discord", "slack", "whatsapp", "cli"}:
+    if channel in _KNOWN_BUS_CHANNELS:
         return f"{channel}_{rest}"
+    logger.warning(
+        "session_key %r looks bus-shaped (colon) but channel %r is not in the "
+        "known list — left untouched. Update _KNOWN_BUS_CHANNELS if a new bus "
+        "adapter was added.",
+        key,
+        channel,
+    )
     return key
 
 
 def _message_to_entry(msg: Message) -> MemoryEntry:
     """Translate a pocket-context Message to a protocol MemoryEntry."""
     ts = msg.createdAt or datetime.now(UTC)
+    metadata: dict = {}
+    if msg.workspace_id:
+        metadata["workspace_id"] = msg.workspace_id
     return MemoryEntry(
         id=str(msg.id),
         type=MemoryType.SESSION,
@@ -55,6 +84,7 @@ def _message_to_entry(msg: Message) -> MemoryEntry:
         updated_at=ts,
         role=msg.role,
         session_key=msg.session_key,
+        metadata=metadata,
     )
 
 
@@ -65,6 +95,8 @@ def _fact_to_entry(doc: MemoryFactDoc) -> MemoryEntry:
     metadata = dict(doc.metadata)
     if doc.user_id:
         metadata.setdefault("user_id", doc.user_id)
+    if doc.workspace_id:
+        metadata.setdefault("workspace_id", doc.workspace_id)
     return MemoryEntry(
         id=str(doc.id),
         type=MemoryType(doc.type),
@@ -82,9 +114,15 @@ class MongoMemoryStore:
     - SESSION: reads/writes the `messages` collection (pocket context).
     - LONG_TERM / DAILY: reads/writes the `memory_facts` collection.
 
-    No workspace scoping at the adapter layer — callers must namespace their
-    ``session_key`` and ``user_id`` across tenants. Flagged as follow-up in
-    SPEC §9.2.
+    Multi-tenant scoping
+    ~~~~~~~~~~~~~~~~~~~~
+    Every persisted row carries a ``workspace_id`` (derived from the linked
+    ``Session.workspace`` for pocket messages, supplied via
+    ``entry.metadata["workspace_id"]`` for facts). The protocol-level read
+    methods stay tenant-agnostic to keep the ``MemoryStoreProtocol`` contract
+    unchanged for OSS callers; ee callers that need strict isolation should
+    use the adapter-specific ``*_in_workspace`` helpers, which add an explicit
+    ``workspace_id`` filter.
     """
 
     async def save(self, entry: MemoryEntry) -> str:
@@ -98,26 +136,30 @@ class MongoMemoryStore:
             # default to "user" and downstream UIs that read `senderType`
             # (instead of `role`) would render every message as the user.
             sender_type = "agent" if role == "assistant" else "user"
+            normalized_key = _normalize_session_key(entry.session_key)
+            workspace_id = await _resolve_session_workspace(normalized_key, entry)
             msg = Message(
                 context_type="pocket",
-                session_key=_normalize_session_key(entry.session_key),
+                session_key=normalized_key,
                 role=role,  # type: ignore[arg-type]
                 sender_type=sender_type,
                 content=entry.content,
+                workspace_id=workspace_id,
             )
             await msg.insert()
             return str(msg.id)
 
         # LONG_TERM / DAILY → memory_facts
-        user_id = entry.metadata.get("user_id") if entry.metadata else None
-        # Don't duplicate user_id in metadata — the column is canonical.
-        metadata = {k: v for k, v in (entry.metadata or {}).items() if k != "user_id"}
+        meta = dict(entry.metadata or {})
+        user_id = meta.pop("user_id", None)
+        workspace_id = meta.pop("workspace_id", None)
         doc = MemoryFactDoc(
             type=entry.type.value,
             content=entry.content,
             tags=list(entry.tags or []),
             user_id=user_id if isinstance(user_id, str) else None,
-            metadata=metadata,
+            workspace_id=workspace_id if isinstance(workspace_id, str) else None,
+            metadata=meta,
         )
         await doc.insert()
         return str(doc.id)
@@ -211,9 +253,7 @@ class MongoMemoryStore:
 
     async def clear_session(self, session_key: str) -> int:
         key = _normalize_session_key(session_key)
-        messages = await Message.find(
-            {"context_type": "pocket", "session_key": key}
-        ).to_list()
+        messages = await Message.find({"context_type": "pocket", "session_key": key}).to_list()
         count = len(messages)
         for m in messages:
             await m.delete()
@@ -240,10 +280,76 @@ class MongoMemoryStore:
         ascending order.
         """
         session = await self.get_session_info(session_key)
-        query = Message.find({"context_type": "pocket", "session_key": session_key})
+        key = _normalize_session_key(session_key)
+        query = Message.find({"context_type": "pocket", "session_key": key})
         if limit is None:
             messages = await query.sort("createdAt").to_list()
         else:
             recent = await query.sort("-createdAt").limit(limit).to_list()
             messages = list(reversed(recent))
         return session, [_message_to_entry(m) for m in messages]
+
+    # ---- Tenant-scoped reads (ee callers should prefer these) ----------
+
+    async def get_session_in_workspace(
+        self, session_key: str, workspace_id: str
+    ) -> list[MemoryEntry]:
+        """Like ``get_session`` but enforces a workspace boundary.
+
+        Returns an empty list if the session_key exists but belongs to a
+        different workspace, so a leaked or guessed key cannot expose a
+        tenant's messages.
+        """
+        key = _normalize_session_key(session_key)
+        messages = (
+            await Message.find(
+                {
+                    "context_type": "pocket",
+                    "session_key": key,
+                    "workspace_id": workspace_id,
+                }
+            )
+            .sort("createdAt")
+            .to_list()
+        )
+        return [_message_to_entry(m) for m in messages]
+
+    async def list_facts_in_workspace(
+        self,
+        workspace_id: str,
+        memory_type: MemoryType | None = None,
+        user_id: str | None = None,
+        limit: int = 100,
+    ) -> list[MemoryEntry]:
+        """List LONG_TERM / DAILY facts scoped to a workspace.
+
+        Rows without a ``workspace_id`` (legacy / OSS data) are excluded so
+        cross-tenant leakage is impossible by construction.
+        """
+        filters: dict = {"workspace_id": workspace_id}
+        if memory_type is not None:
+            filters["type"] = memory_type.value
+        if user_id is not None:
+            filters["user_id"] = user_id
+        facts = await MemoryFactDoc.find(filters).sort("-createdAt").limit(limit).to_list()
+        return [_fact_to_entry(f) for f in facts]
+
+
+async def _resolve_session_workspace(session_key: str, entry: MemoryEntry) -> str | None:
+    """Best-effort lookup of the workspace for a SESSION row at write time.
+
+    Order of preference:
+    1. ``entry.metadata["workspace_id"]`` if the caller already knows it
+       (e.g. an HTTP handler with the active workspace in scope).
+    2. The linked ``Session.workspace`` resolved by ``sessionId == session_key``.
+
+    Returns ``None`` when neither is available — the row stays untagged but
+    still persists so OSS / single-tenant callers aren't blocked. Tenant-
+    scoped reads (``get_session_in_workspace``) won't return untagged rows,
+    which is the correct safe default.
+    """
+    md_ws = (entry.metadata or {}).get("workspace_id")
+    if isinstance(md_ws, str) and md_ws:
+        return md_ws
+    session = await Session.find_one(Session.sessionId == session_key)
+    return session.workspace if session else None

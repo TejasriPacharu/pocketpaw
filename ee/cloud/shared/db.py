@@ -20,9 +20,6 @@ async def init_cloud_db(mongo_uri: str = "mongodb://localhost:27017/paw-enterpri
     from ee.cloud.memory.documents import MemoryFactDoc
     from ee.cloud.models import ALL_DOCUMENTS
 
-    # Flip the memory backend default before Beanie/Settings get cached.
-    register_default_backend()
-
     _client = AsyncMongoClient(mongo_uri)
     db_name = mongo_uri.rsplit("/", 1)[-1].split("?")[0] or "paw-enterprise"
     db = _client[db_name]
@@ -32,6 +29,12 @@ async def init_cloud_db(mongo_uri: str = "mongodb://localhost:27017/paw-enterpri
     documents = [*ALL_DOCUMENTS, MemoryFactDoc]
     await init_beanie(database=db, document_models=documents)
     logger.info("Cloud DB initialized: %s (%d models)", db_name, len(documents))
+
+    # Flip the memory backend AFTER Beanie is initialized so the
+    # MongoMemoryStore's first .insert()/.find() call can never race a
+    # not-yet-initialized collection. The bootstrap is a no-op until this
+    # point, so callers always see a working store.
+    register_default_backend()
 
 
 async def close_cloud_db() -> None:
