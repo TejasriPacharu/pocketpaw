@@ -43,25 +43,30 @@ async def list_sessions(
 
 @router.get("/runtime")
 async def list_runtime_sessions(limit: int = 50) -> dict:
-    """List sessions from PocketPaw's native runtime file store."""
+    """List sessions from the active memory store's session index.
+
+    Dispatches on the store: MongoMemoryStore exposes an async variant,
+    FileMemoryStore a sync one. Stores without either return empty.
+    """
     from pocketpaw.memory import get_memory_manager
 
     manager = get_memory_manager()
     store = manager._store
 
-    if not hasattr(store, "_load_session_index"):
+    if hasattr(store, "_load_session_index_async"):
+        index = await store._load_session_index_async()
+    elif hasattr(store, "_load_session_index"):
+        index = store._load_session_index()
+    else:
         return {"sessions": [], "total": 0}
 
-    index = store._load_session_index()
     entries = sorted(
         index.items(),
         key=lambda kv: kv[1].get("last_activity", ""),
         reverse=True,
     )[:limit]
 
-    sessions = []
-    for safe_key, meta in entries:
-        sessions.append({"id": safe_key, **meta})
+    sessions = [{"id": safe_key, **meta} for safe_key, meta in entries]
 
     return {"sessions": sessions, "total": len(index)}
 

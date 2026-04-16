@@ -270,6 +270,39 @@ class MongoMemoryStore:
         """
         return await Session.find_one(Session.sessionId == session_key)
 
+    async def _load_session_index_async(self) -> dict:
+        """Build a session-index dict from pocket-context Session docs.
+
+        Shape-compatible with ``FileMemoryStore._load_session_index`` so the
+        ``GET /sessions/runtime`` endpoint is backend-agnostic. Returns a mapping
+        ``{sessionId: {title, channel, last_activity, message_count}}`` for all
+        non-deleted pocket sessions.
+        """
+        docs = await Session.find(
+            {"context_type": "pocket", "deleted_at": None}
+        ).to_list()
+
+        index: dict[str, dict] = {}
+        for doc in docs:
+            session_id = doc.sessionId
+            # Derive channel from the safe_key prefix (websocket_xxx → "websocket").
+            channel = session_id.split("_", 1)[0] if "_" in session_id else "unknown"
+            # Mongo strips tzinfo on persistence; re-anchor as UTC so the
+            # serialized ISO string stays unambiguous for the frontend.
+            last_activity = ""
+            if doc.lastActivity:
+                dt = doc.lastActivity
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                last_activity = dt.isoformat()
+            index[session_id] = {
+                "title": doc.title or "New Chat",
+                "channel": channel,
+                "last_activity": last_activity,
+                "message_count": doc.messageCount,
+            }
+        return index
+
     async def get_session_with_messages(
         self, session_key: str, limit: int | None = None
     ) -> tuple[Session | None, list[MemoryEntry]]:
