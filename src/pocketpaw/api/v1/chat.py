@@ -188,6 +188,7 @@ async def _send_message(chat_request: ChatRequest) -> str:
     """Publish an inbound message to the bus and return the chat_id."""
     from pocketpaw.bus import get_message_bus
     from pocketpaw.bus.events import Channel, InboundMessage
+    from pocketpaw.uploads.resolver import resolve_media_with_records
 
     chat_id = _extract_chat_id(chat_request.session_id)
 
@@ -195,12 +196,31 @@ async def _send_message(chat_request: ChatRequest) -> str:
     if chat_request.file_context:
         meta["file_context"] = chat_request.file_context.model_dump(exclude_none=True)
 
+    # Resolve ``/api/v1/uploads/{id}`` URLs to (path, FileRecord) pairs so the
+    # agent prompt can carry filename / mime / size, not just a bare disk path.
+    # Falls back to the EE Mongo store when OSS JSONL misses — common in
+    # self-hosted EE where uploads go through the workspace-scoped router.
+    resolved = await resolve_media_with_records(chat_request.media or [])
+    media = [r.path for r in resolved]
+    media_info = [
+        {
+            "path": r.path,
+            "filename": r.record.filename,
+            "mime": r.record.mime,
+            "size": r.record.size,
+        }
+        for r in resolved
+        if r.record is not None
+    ]
+    if media_info:
+        meta["media_info"] = media_info
+
     msg = InboundMessage(
         channel=Channel.WEBSOCKET,
         sender_id="api_client",
         chat_id=chat_id,
         content=chat_request.content,
-        media=chat_request.media,
+        media=media,
         metadata=meta,
     )
     bus = get_message_bus()
