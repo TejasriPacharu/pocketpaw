@@ -22,7 +22,7 @@ def init_realtime() -> None:
     from ee.cloud.chat.group_service import GroupService
     from ee.cloud.chat.ws import manager as _conn_manager
     from ee.cloud.realtime.audience import AudienceResolver
-    from ee.cloud.realtime.bus import InProcessBus, set_bus
+    from ee.cloud.realtime.bus import InProcessBus, set_bus, set_resolver
     from ee.cloud.workspace.service import WorkspaceService
 
     logger = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ def init_realtime() -> None:
         )
 
     set_bus(InProcessBus(resolver=resolver, conn_manager=_conn_manager))
+    set_resolver(resolver)
 
 
 def mount_cloud(app: FastAPI) -> None:

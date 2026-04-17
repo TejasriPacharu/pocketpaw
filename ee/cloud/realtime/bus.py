@@ -66,3 +66,16 @@ def set_bus(bus: EventBus) -> None:
 def get_bus() -> EventBus:
     assert _bus is not None, "EventBus not initialized — call init_realtime()"
     return _bus
+
+
+_resolver: AudienceResolver | None = None
+
+
+def set_resolver(resolver: AudienceResolver) -> None:
+    global _resolver
+    _resolver = resolver
+
+
+def get_resolver() -> AudienceResolver:
+    assert _resolver is not None, "AudienceResolver not initialized — call init_realtime()"
+    return _resolver

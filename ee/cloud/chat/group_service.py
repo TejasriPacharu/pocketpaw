@@ -19,6 +19,18 @@ from ee.cloud.chat.schemas import (
     UpdateGroupRequest,
 )
 from ee.cloud.models.group import Group, GroupAgent, MemberRole
+from ee.cloud.realtime.bus import get_resolver
+from ee.cloud.realtime.emit import emit
+from ee.cloud.realtime.events import (
+    GroupAgentAdded,
+    GroupAgentRemoved,
+    GroupAgentUpdated,
+    GroupCreated,
+    GroupMemberAdded,
+    GroupMemberRemoved,
+    GroupMemberRole,
+    GroupUpdated,
+)
 from ee.cloud.shared.errors import Forbidden, NotFound, ValidationError
 from pocketpaw.ee.guards.actions import GroupRole
 from pocketpaw.ee.guards.audit import log_denial
@@ -240,7 +252,9 @@ class GroupService:
             owner=user_id,
         )
         await group.insert()
-        return await _group_response(group)
+        resp = await _group_response(group)
+        await emit(GroupCreated(data={**resp, "member_ids": list(group.members)}))
+        return resp
 
     @staticmethod
     async def list_groups(workspace_id: str, user_id: str) -> list[dict]:
@@ -297,6 +311,8 @@ class GroupService:
             group.type = body.type
 
         await group.save()
+        patched = body.model_dump(exclude_unset=True)
+        await emit(GroupUpdated(data={"group_id": group_id, **patched}))
         return await _group_response(group)
 
     @staticmethod
@@ -306,6 +322,7 @@ class GroupService:
         _require_group_admin(group, user_id)
         group.archived = True
         await group.save()
+        await emit(GroupUpdated(data={"group_id": group_id, "archived": True}))
 
     @staticmethod
     async def join_group(group_id: str, user_id: str) -> None:
@@ -320,6 +337,10 @@ class GroupService:
         if user_id not in group.members:
             group.members.append(user_id)
             await group.save()
+            await emit(
+                GroupMemberAdded(data={"group_id": group_id, "user_id": user_id, "role": "edit"})
+            )
+            get_resolver().invalidate_group(group_id)
 
     @staticmethod
     async def leave_group(group_id: str, user_id: str) -> None:
@@ -335,6 +356,8 @@ class GroupService:
 
         group.members.remove(user_id)
         await group.save()
+        await emit(GroupMemberRemoved(data={"group_id": group_id, "user_id": user_id}))
+        get_resolver().invalidate_group(group_id)
 
     @staticmethod
     async def add_members(
@@ -369,6 +392,15 @@ class GroupService:
         if newly_added or role in ("admin", "view"):
             await group.save()
 
+        for added_user_id in newly_added:
+            await emit(
+                GroupMemberAdded(
+                    data={"group_id": group_id, "user_id": added_user_id, "role": role}
+                )
+            )
+        if newly_added:
+            get_resolver().invalidate_group(group_id)
+
         return newly_added
 
     @staticmethod
@@ -386,6 +418,8 @@ class GroupService:
         group.members.remove(target_user_id)
         group.member_roles.pop(target_user_id, None)
         await group.save()
+        await emit(GroupMemberRemoved(data={"group_id": group_id, "user_id": target_user_id}))
+        get_resolver().invalidate_group(group_id)
 
     @staticmethod
     async def set_member_role(
@@ -417,6 +451,9 @@ class GroupService:
             group.member_roles[target_user_id] = role
 
         await group.save()
+        await emit(
+            GroupMemberRole(data={"group_id": group_id, "user_id": target_user_id, "role": role})
+        )
         return role
 
     @staticmethod
@@ -441,6 +478,15 @@ class GroupService:
             )
         )
         await group.save()
+        await emit(
+            GroupAgentAdded(
+                data={
+                    "group_id": group_id,
+                    "agent_id": body.agent_id,
+                    "respond_mode": body.respond_mode,
+                }
+            )
+        )
 
     @staticmethod
     async def update_agent(
@@ -454,6 +500,15 @@ class GroupService:
             if agent.agent == agent_id:
                 agent.respond_mode = body.respond_mode
                 await group.save()
+                await emit(
+                    GroupAgentUpdated(
+                        data={
+                            "group_id": group_id,
+                            "agent_id": agent_id,
+                            "respond_mode": body.respond_mode,
+                        }
+                    )
+                )
                 return
 
         raise NotFound("agent", agent_id)
@@ -470,6 +525,7 @@ class GroupService:
             raise NotFound("agent", agent_id)
 
         await group.save()
+        await emit(GroupAgentRemoved(data={"group_id": group_id, "agent_id": agent_id}))
 
     @staticmethod
     async def get_or_create_dm(workspace_id: str, user_id: str, target_user_id: str) -> dict:
@@ -498,7 +554,9 @@ class GroupService:
             owner=user_id,
         )
         await group.insert()
-        return await _group_response(group)
+        resp = await _group_response(group)
+        await emit(GroupCreated(data={**resp, "member_ids": list(group.members)}))
+        return resp
 
     @staticmethod
     async def get_or_create_agent_dm(workspace_id: str, user_id: str, agent_id: str) -> dict:
@@ -550,7 +608,9 @@ class GroupService:
             owner=user_id,
         )
         await group.insert()
-        return await _group_response(group)
+        resp = await _group_response(group)
+        await emit(GroupCreated(data={**resp, "member_ids": list(group.members)}))
+        return resp
 
     # ------------------------------------------------------------------
     # Realtime helpers (audience lookups)
