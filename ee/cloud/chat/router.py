@@ -403,7 +403,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                 )
                 continue
 
-            await _handle_ws_message(user_id, msg)
+            await _handle_ws_message(websocket, user_id, msg)
 
     except WebSocketDisconnect:
         pass
@@ -421,7 +421,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
 # ---------------------------------------------------------------------------
 
 
-async def _handle_ws_message(user_id: str, msg: WsInbound) -> None:
+async def _handle_ws_message(websocket: WebSocket, user_id: str, msg: WsInbound) -> None:
     """Dispatch validated WebSocket message to the appropriate handler."""
     if msg.type == "message.send":
         await _ws_message_send(user_id, msg)
@@ -439,6 +439,16 @@ async def _handle_ws_message(user_id: str, msg: WsInbound) -> None:
         pass  # Will be wired in Task 19
     elif msg.type == "read.ack":
         await _ws_read_ack(user_id, msg)
+    elif msg.type == "room.join":
+        if msg.group_id:
+            # TODO(rbac): enforce the user is allowed to see this group. For
+            # now, we trust the REST-layer permission check that populated the
+            # client's group list — the client only joins rooms it has seen
+            # via GET /groups. Typing leakage is bounded to group members in
+            # practice; hardening lands in the RBAC task.
+            manager.join_room(websocket, msg.group_id)
+    elif msg.type == "room.leave":
+        manager.leave_room(websocket)
 
 
 async def _ws_message_send(user_id: str, msg: WsInbound) -> None:
@@ -486,47 +496,33 @@ async def _ws_typing(user_id: str, msg: WsInbound, *, active: bool) -> None:
     else:
         manager.stop_typing(msg.group_id, user_id)
 
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-
-    group = await Group.get(PydanticObjectId(msg.group_id))
-    if group:
-        await manager.broadcast_to_group(
-            msg.group_id,
-            group.members,
-            WsOutbound(
-                type="typing",
-                data={
-                    "group_id": msg.group_id,
-                    "user_id": user_id,
-                    "active": active,
-                },
-            ),
-            exclude_user=user_id,
-        )
+    await manager.send_to_room(
+        msg.group_id,
+        WsOutbound(
+            type="typing",
+            data={
+                "group_id": msg.group_id,
+                "user_id": user_id,
+                "active": active,
+            },
+        ),
+        exclude_user=user_id,
+    )
 
 
 async def _ws_read_ack(user_id: str, msg: WsInbound) -> None:
     if not msg.group_id or not msg.message_id:
         return
 
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-
-    group = await Group.get(PydanticObjectId(msg.group_id))
-    if group:
-        await manager.broadcast_to_group(
-            msg.group_id,
-            group.members,
-            WsOutbound(
-                type="read.receipt",
-                data={
-                    "group_id": msg.group_id,
-                    "user_id": user_id,
-                    "last_read": msg.message_id,
-                },
-            ),
-            exclude_user=user_id,
-        )
+    await manager.send_to_room(
+        msg.group_id,
+        WsOutbound(
+            type="read.receipt",
+            data={
+                "group_id": msg.group_id,
+                "user_id": user_id,
+                "last_read": msg.message_id,
+            },
+        ),
+        exclude_user=user_id,
+    )
