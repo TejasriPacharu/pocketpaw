@@ -215,7 +215,9 @@ def test_router_no_longer_broadcasts_message_events():
     """Regression guard: the four _ws_message_* handlers must not call manager.broadcast/send."""
     from pathlib import Path
 
-    src = Path("D:/paw/backend/ee/cloud/chat/router.py").read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parents[3] / "ee/cloud/chat/router.py").read_text(
+        encoding="utf-8"
+    )
 
     start = src.index("async def _ws_message_send")
     end = src.index("async def _ws_typing")
