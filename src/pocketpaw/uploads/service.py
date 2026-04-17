@@ -194,6 +194,22 @@ class UploadService:
             raise NotFound()
         return rec, self._adapter.open(rec.storage_key)
 
+    async def presigned_get(
+        self, file_id: str, requester_id: str, ttl_seconds: int
+    ) -> tuple[FileRecord, str | None]:
+        """Return (record, presigned_url_or_None) for ``file_id``.
+
+        Delegates to the adapter's ``presigned_get``. Callers that get ``None``
+        should fall back to their own signing scheme (e.g. HMAC proxy URL).
+        """
+        rec = self._meta.get(file_id)
+        if rec is None:
+            raise NotFound()
+        if rec.owner_id != requester_id:
+            raise NotFound()
+        url = await self._adapter.presigned_get(rec.storage_key, ttl_seconds)
+        return rec, url
+
     async def delete(self, file_id: str, requester_id: str) -> None:
         rec = self._meta.get(file_id)
         if rec is None:

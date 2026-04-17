@@ -11,6 +11,7 @@ Extracted from dashboard.py — contains:
 import hmac
 import io
 import logging
+import re
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -20,6 +21,22 @@ from pocketpaw.dashboard_state import _LOCALHOST_ADDRS, _PROXY_HEADERS
 from pocketpaw.security.rate_limiter import api_limiter, auth_limiter
 from pocketpaw.security.session_tokens import create_session_token, verify_session_token
 from pocketpaw.tunnel import get_tunnel_manager
+from pocketpaw.uploads.signing import verify_grant
+
+# Matches `/api/v1/uploads/{file_id}` — not `/grant` and not root. Used to
+# scope the signed-grant bypass so it can't be used to reach any other route.
+_UPLOAD_GET_PATH = re.compile(r"^/api/v1/uploads/(?P<id>[A-Za-z0-9_-]+)$")
+
+
+def _verify_upload_grant(request: Request, secret: str) -> bool:
+    """True if ``request`` carries a valid ``?t=`` grant for its path's file."""
+    m = _UPLOAD_GET_PATH.match(request.url.path)
+    if not m:
+        return False
+    token = request.query_params.get("t")
+    if not token:
+        return False
+    return verify_grant(m.group("id"), token, secret)
 
 logger = logging.getLogger(__name__)
 
@@ -464,6 +481,14 @@ async def _auth_dispatch(request: Request) -> Response | None:
     # 6. Allow genuine localhost (not tunneled proxies)
     if not is_valid and _is_genuine_localhost(request):
         is_valid = True
+
+    # 7. Short-lived signed grant for uploaded files.
+    # Minted by the authed ``/uploads/{id}/grant`` endpoint; lets the bytes be
+    # loaded from ``<img src>`` / ``<a href download>`` where a Bearer header
+    # cannot be attached. Scope: GETs only, path-bound, 5-minute TTL by default.
+    if not is_valid and request.method == "GET":
+        if _verify_upload_grant(request, current_token):
+            is_valid = True
 
     # Allow frontend assets (/, /static/*, /uploads/*) through for SPA bootstrap.
     if (

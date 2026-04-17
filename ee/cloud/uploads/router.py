@@ -24,12 +24,12 @@ from ee.cloud.uploads.mongo_store import MongoFileStore
 from ee.cloud.uploads.service import EEUploadService
 from pocketpaw.uploads.config import INLINE_MIMES, UploadSettings
 from pocketpaw.uploads.errors import NotFound
-from pocketpaw.uploads.local import LocalStorageAdapter
+from pocketpaw.uploads.factory import build_adapter
 
 # Module-level singletons — one adapter + store per process
 _ROOT = Path.home() / ".pocketpaw" / "uploads"
 _CFG = UploadSettings(local_root=_ROOT)
-_ADAPTER = LocalStorageAdapter(root=_ROOT)
+_ADAPTER = build_adapter(_ROOT)
 _META = MongoFileStore()
 _SVC = EEUploadService(adapter=_ADAPTER, meta=_META, cfg=_CFG)
 
@@ -65,6 +65,42 @@ async def upload(
     return {
         "uploaded": [_record_to_dict(r) for r in result.uploaded],
         "failed": [asdict(f) for f in result.failed],
+    }
+
+
+@router.get("/{file_id}/grant")
+async def grant(
+    file_id: str,
+    workspace: str = Depends(current_workspace_id),
+    user_id: str = Depends(current_user_id),
+) -> dict:
+    """Mint a short-lived signed URL for ``file_id``.
+
+    Returns the storage adapter's presigned URL when available (S3 and
+    friends), otherwise an HMAC-signed proxy URL through this service.
+    """
+    import time
+
+    from ee.cloud.auth import SECRET
+    from pocketpaw.uploads.signing import DEFAULT_TTL_SECONDS, sign_grant
+
+    try:
+        _rec, presigned = await _SVC.presigned_get(
+            file_id, user_id, workspace, DEFAULT_TTL_SECONDS
+        )
+    except NotFound as e:
+        raise HTTPException(status_code=404, detail="not found") from e
+
+    if presigned:
+        return {
+            "url": presigned,
+            "expires_at": int(time.time()) + DEFAULT_TTL_SECONDS,
+        }
+
+    token, expires_at = sign_grant(file_id, SECRET)
+    return {
+        "url": f"/api/v1/uploads/{file_id}?t={token}",
+        "expires_at": expires_at,
     }
 
 

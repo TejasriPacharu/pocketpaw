@@ -47,3 +47,12 @@ class StorageAdapter(Protocol):
         without streaming through HTTP. Remote adapters (S3, GCS) return
         ``None`` — the caller should fall back to streaming via ``open``.
         """
+
+    async def presigned_get(self, key: str, ttl_seconds: int) -> str | None:
+        """Return a time-limited public URL for reading ``key``.
+
+        Adapters that natively support presigning (S3, GCS) return an
+        absolute URL the browser can fetch without an Authorization header.
+        Adapters that don't (local disk) return ``None``; the caller should
+        fall back to its own signing scheme.
+        """

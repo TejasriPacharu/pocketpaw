@@ -137,6 +137,17 @@ class MongoMemoryStore:
             # (instead of `role`) would render every message as the user.
             sender_type = "agent" if role == "assistant" else "user"
             normalized_key = _normalize_session_key(entry.session_key)
+
+            # Dedup against chat_persistence: the chat endpoint persists the
+            # user message (with attachments) the moment it arrives, and the
+            # agent loop also calls us with the same content for context.
+            # Without this check both land as separate Message rows and the
+            # UI renders the user's send twice on reload. Window is 30s so
+            # normal re-sends of identical text still persist.
+            existing = await _find_recent_twin(normalized_key, role, entry.content)
+            if existing is not None:
+                return str(existing.id)
+
             workspace_id = await _resolve_session_workspace(normalized_key, entry)
             msg = Message(
                 context_type="pocket",
@@ -366,6 +377,43 @@ class MongoMemoryStore:
             filters["user_id"] = user_id
         facts = await MemoryFactDoc.find(filters).sort("-createdAt").limit(limit).to_list()
         return [_fact_to_entry(f) for f in facts]
+
+
+# Window for treating an existing Message as a duplicate of the current
+# write. Sized to comfortably cover the save_user_message → memory.add_to_session
+# race (same request, same event loop) while still letting an actual user
+# resend of the identical text through.
+_DEDUP_WINDOW_SECONDS = 30
+
+
+async def _find_recent_twin(
+    session_key: str,
+    role: str,
+    content: str,
+) -> Message | None:
+    """Return an existing Message row with the same content written recently.
+
+    Guards against the dual-write case where the chat endpoint persists the
+    message once (with attachments) and the agent loop then calls us with
+    the same content for agent-context memory. The first writer wins —
+    attachments and ordering on the canonical record are preserved.
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now(UTC) - timedelta(seconds=_DEDUP_WINDOW_SECONDS)
+    try:
+        return await Message.find_one(
+            {
+                "context_type": "pocket",
+                "session_key": session_key,
+                "role": role,
+                "content": content,
+                "createdAt": {"$gte": cutoff},
+            }
+        )
+    except Exception:
+        logger.exception("memory dedup lookup failed for session=%s", session_key)
+        return None
 
 
 async def _resolve_session_workspace(session_key: str, entry: MemoryEntry) -> str | None:
