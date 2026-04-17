@@ -551,3 +551,22 @@ class GroupService:
         )
         await group.insert()
         return await _group_response(group)
+
+    # ------------------------------------------------------------------
+    # Realtime helpers (audience lookups)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def _fetch_group(group_id: str):
+        """Wrapped for testability."""
+        try:
+            oid = PydanticObjectId(group_id)
+        except Exception:
+            return None
+        return await Group.get(oid)
+
+    @staticmethod
+    async def list_member_ids(group_id: str) -> list[str]:
+        """Return the user_ids that are members of the group. Empty if missing."""
+        group = await GroupService._fetch_group(group_id)
+        return list(group.members) if group else []

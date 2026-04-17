@@ -371,3 +371,47 @@ class WorkspaceService:
 
         invite.revoked = True
         await invite.save()
+
+    # ------------------------------------------------------------------
+    # Realtime helpers (audience lookups)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def list_member_ids(workspace_id: str) -> list[str]:
+        """Return user_ids of every workspace member."""
+        users = await User.find({"workspaces.workspace": workspace_id}).to_list()
+        return [str(u.id) for u in users]
+
+    @staticmethod
+    async def list_admin_ids(workspace_id: str) -> list[str]:
+        """Return user_ids of owners + admins."""
+        users = await User.find(
+            {
+                "workspaces": {
+                    "$elemMatch": {
+                        "workspace": workspace_id,
+                        "role": {"$in": ["owner", "admin"]},
+                    }
+                }
+            }
+        ).to_list()
+        return [str(u.id) for u in users]
+
+    @staticmethod
+    async def list_peer_ids(user_id: str) -> list[str]:
+        """Return user_ids that share at least one workspace with the given user.
+
+        Used for presence fan-out. Excludes the user themselves.
+        """
+        try:
+            me_oid = PydanticObjectId(user_id)
+        except Exception:
+            return []
+        me = await User.get(me_oid)
+        if not me or not getattr(me, "workspaces", None):
+            return []
+        workspace_ids = [m.workspace for m in me.workspaces]
+        peers = await User.find(
+            {"workspaces.workspace": {"$in": workspace_ids}, "_id": {"$ne": me.id}}
+        ).to_list()
+        return [str(u.id) for u in peers]
