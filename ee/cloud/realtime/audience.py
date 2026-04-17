@@ -136,7 +136,13 @@ class AudienceResolver:
 
         # --- Sessions -----------------------------------------------------------
         if t in {"session.created", "session.updated", "session.deleted"}:
-            return list({d["user_id"], d["peer_id"]})
+            user_id = d.get("user_id")
+            peer_id = d.get("peer_id")
+            if user_id and peer_id:
+                return list({user_id, peer_id})
+            if user_id:
+                return [user_id]
+            return []
 
         # --- Files --------------------------------------------------------------
         if t in {"file.ready", "file.deleted"}:

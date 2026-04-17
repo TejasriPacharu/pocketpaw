@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from beanie import PydanticObjectId
 
 from ee.cloud.models.session import Session
+from ee.cloud.realtime.emit import emit
+from ee.cloud.realtime.events import SessionCreated, SessionDeleted, SessionUpdated
 from ee.cloud.sessions.schemas import (
     CreateSessionRequest,
     UpdateSessionRequest,
@@ -50,11 +52,25 @@ class SessionService:
             existing = await Session.find_one(Session.sessionId == body.session_id)
             if existing:
                 # Update the existing record (e.g. add pocket link)
+                patched: dict = {}
                 if body.pocket_id:
                     existing.pocket = body.pocket_id
+                    patched["pocket_id"] = body.pocket_id
                 if body.title and body.title != "New Chat":
                     existing.title = body.title
+                    patched["title"] = body.title
                 await existing.save()
+
+                if patched:
+                    await emit(
+                        SessionUpdated(
+                            data={
+                                "session_id": str(existing.id),
+                                "user_id": existing.owner,
+                                **patched,
+                            }
+                        )
+                    )
                 return _session_response(existing)
 
         session = Session(
@@ -79,6 +95,16 @@ class SessionService:
                 "pocket_id": body.pocket_id,
             },
         )
+
+        created_data: dict = {
+            "session_id": str(session.id),
+            "user_id": user_id,
+            "agent_id": body.agent_id,
+            "workspace_id": workspace_id,
+        }
+        if body.pocket_id:
+            created_data["pocket_id"] = body.pocket_id
+        await emit(SessionCreated(data=created_data))
 
         return _session_response(session)
 
@@ -132,6 +158,17 @@ class SessionService:
         if body.pocket_id is not None:
             session.pocket = body.pocket_id
         await session.save()
+
+        patched = body.model_dump(exclude_unset=True)
+        await emit(
+            SessionUpdated(
+                data={
+                    "session_id": str(session.id),
+                    "user_id": user_id,
+                    **patched,
+                }
+            )
+        )
         return _session_response(session)
 
     @staticmethod
@@ -139,6 +176,15 @@ class SessionService:
         session = await SessionService._get_session(session_id, user_id)
         session.deleted_at = datetime.now(UTC)
         await session.save()
+
+        await emit(
+            SessionDeleted(
+                data={
+                    "session_id": str(session.id),
+                    "user_id": user_id,
+                }
+            )
+        )
 
     # -----------------------------------------------------------------
     # Pocket-scoped
@@ -252,10 +298,23 @@ class SessionService:
         # Fallback: strip websocket_ prefix
         if not session and session_id.startswith("websocket_"):
             session = await Session.find_one(Session.sessionId == session_id[10:])
-        if session:
-            session.lastActivity = datetime.now(UTC)
-            session.messageCount += 1
-            await session.save()
+        if not session:
+            return
+        session.lastActivity = datetime.now(UTC)
+        session.messageCount += 1
+        await session.save()
+
+        await emit(
+            SessionUpdated(
+                data={
+                    "session_id": str(session.id),
+                    "user_id": session.owner,
+                    "last_message_at": session.lastActivity.isoformat()
+                    if session.lastActivity
+                    else None,
+                }
+            )
+        )
 
     # -----------------------------------------------------------------
     # Internal

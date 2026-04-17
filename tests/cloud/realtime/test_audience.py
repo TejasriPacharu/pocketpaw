@@ -142,3 +142,12 @@ async def test_session_audience_dedupes_self_participants():
 
     ev = SessionUpdated(data={"session_id": "s1", "user_id": "u1", "peer_id": "u1"})
     assert await r.audience(ev) == ["u1"]
+
+
+@pytest.mark.asyncio
+async def test_session_audience_single_user_when_no_peer():
+    r = AudienceResolver()
+    from ee.cloud.realtime.events import SessionCreated
+
+    ev = SessionCreated(data={"session_id": "s1", "user_id": "u1"})
+    assert await r.audience(ev) == ["u1"]
