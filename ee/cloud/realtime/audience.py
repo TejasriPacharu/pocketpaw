@@ -33,9 +33,14 @@ class AudienceResolver:
         self._cache.pop(("group", group_id), None)
 
     def invalidate_workspace(self, workspace_id: str) -> None:
+        # Peer caches are user-scoped (keyed by user_id, not workspace_id) and are
+        # handled by invalidate_user_peers or the short TTL — do not try to pop
+        # them here.
         self._cache.pop(("workspace", workspace_id), None)
         self._cache.pop(("workspace_admins", workspace_id), None)
-        self._cache.pop(("workspace_peers", workspace_id), None)
+
+    def invalidate_user_peers(self, user_id: str) -> None:
+        self._cache.pop(("workspace_peers", user_id), None)
 
     async def _cached(self, kind: str, key: str, fn: MemberFetcher | None) -> list[str]:
         if fn is None:
@@ -125,7 +130,7 @@ class AudienceResolver:
 
         # --- Sessions -----------------------------------------------------------
         if t in {"session.created", "session.updated", "session.deleted"}:
-            return [d["user_id"], d["peer_id"]]
+            return list({d["user_id"], d["peer_id"]})
 
         # --- Files --------------------------------------------------------------
         if t in {"file.ready", "file.deleted"}:

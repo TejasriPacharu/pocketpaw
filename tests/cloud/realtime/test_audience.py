@@ -16,13 +16,6 @@ from ee.cloud.realtime.events import (
 )
 
 
-async def _fixed(ids: list[str]):
-    async def _fn(_key: str) -> list[str]:
-        return ids
-
-    return _fn
-
-
 @pytest.mark.asyncio
 async def test_group_created_audience_is_member_ids_from_payload():
     # group.created uses the payload's member_ids so the *newly created* group is
@@ -120,3 +113,32 @@ async def test_unknown_event_type_returns_empty_list():
 
     r = AudienceResolver()
     assert await r.audience(Event(type="something.made.up", data={})) == []
+
+
+@pytest.mark.asyncio
+async def test_invalidate_user_peers_clears_peer_cache():
+    calls = {"n": 0}
+
+    async def peers(_uid: str) -> list[str]:
+        calls["n"] += 1
+        return ["p1"]
+
+    r = AudienceResolver(workspace_peers=peers, cache_ttl_seconds=60)
+    from ee.cloud.realtime.events import PresenceOnline
+
+    ev = PresenceOnline(data={"user_id": "u1"})
+    await r.audience(ev)
+    await r.audience(ev)
+    assert calls["n"] == 1
+    r.invalidate_user_peers("u1")
+    await r.audience(ev)
+    assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_session_audience_dedupes_self_participants():
+    r = AudienceResolver()
+    from ee.cloud.realtime.events import SessionUpdated
+
+    ev = SessionUpdated(data={"session_id": "s1", "user_id": "u1", "peer_id": "u1"})
+    assert await r.audience(ev) == ["u1"]
