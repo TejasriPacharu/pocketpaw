@@ -225,6 +225,11 @@ class AgentError(Event):
 
 
 @dataclass
+class AgentStreamStart(Event):
+    EVENT_TYPE: ClassVar[str] = "agent.stream_start"
+
+
+@dataclass
 class AgentStreamChunk(Event):
     EVENT_TYPE: ClassVar[str] = "agent.stream_chunk"
 
@@ -232,6 +237,11 @@ class AgentStreamChunk(Event):
 @dataclass
 class AgentStreamEnd(Event):
     EVENT_TYPE: ClassVar[str] = "agent.stream_end"
+
+
+@dataclass
+class AgentToolUse(Event):
+    EVENT_TYPE: ClassVar[str] = "agent.tool_use"
 
 
 # Notifications

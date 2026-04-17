@@ -144,6 +144,8 @@ class AudienceResolver:
             "agent.error",
             "agent.stream_chunk",
             "agent.stream_end",
+            "agent.stream_start",
+            "agent.tool_use",
         }:
             return await self._group(d["group_id"])
 
