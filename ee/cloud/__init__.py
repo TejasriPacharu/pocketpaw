@@ -71,10 +71,12 @@ def mount_cloud(app: FastAPI) -> None:
     app.include_router(sessions_router, prefix="/api/v1")
 
     from ee.cloud.kb.router import router as kb_router
+    from ee.cloud.notifications.router import router as notifications_router
     from ee.cloud.uploads.router import router as uploads_router
 
     app.include_router(kb_router, prefix="/api/v1")
     app.include_router(uploads_router, prefix="/api/v1")
+    app.include_router(notifications_router, prefix="/api/v1")
 
     # User search endpoint — used by group settings, pocket sharing
     from ee.cloud.models.user import User as UserModel

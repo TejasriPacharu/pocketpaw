@@ -8,8 +8,10 @@ from datetime import UTC, datetime
 from beanie import PydanticObjectId
 
 from ee.cloud.models.invite import Invite
+from ee.cloud.models.notification import NotificationSource
 from ee.cloud.models.user import User, WorkspaceMembership
 from ee.cloud.models.workspace import Workspace, WorkspaceSettings
+from ee.cloud.notifications.service import NotificationService
 from ee.cloud.realtime.bus import get_resolver
 from ee.cloud.realtime.emit import emit
 from ee.cloud.realtime.events import (
@@ -352,6 +354,19 @@ class WorkspaceService:
                 }
             )
         )
+
+        # If the invited email matches an existing user, create an in-app
+        # notification so their bell icon lights up immediately.
+        invited_user = await User.find_one(User.email == body.email)
+        if invited_user:
+            await NotificationService.create(
+                workspace_id=workspace_id,
+                recipient=str(invited_user.id),
+                kind="invite",
+                title=f"You were invited to join {ws.name}",
+                body="",
+                source=NotificationSource(type="invite", id=str(invite.id)),
+            )
 
         return _invite_response(invite)
 
