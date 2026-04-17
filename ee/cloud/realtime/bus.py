@@ -1,0 +1,62 @@
+"""EventBus protocol and in-process implementation.
+
+Services call ``emit(event)`` (see ``emit.py``) which delegates to the active
+bus. The default ``InProcessBus`` resolves audiences via ``AudienceResolver``
+and fans out through the existing ``ConnectionManager.send_to_user``.
+
+A future ``RedisBus`` (Task 33) will use the same protocol so call sites are
+unaffected.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Protocol
+
+from ee.cloud.chat.schemas import WsOutbound
+from ee.cloud.realtime.audience import AudienceResolver
+from ee.cloud.realtime.events import Event
+
+logger = logging.getLogger(__name__)
+
+
+class EventBus(Protocol):
+    async def publish(self, event: Event) -> None: ...
+
+
+class InProcessBus:
+    """Fan out events to sockets on the same process."""
+
+    def __init__(self, *, resolver: AudienceResolver, conn_manager) -> None:
+        self._resolver = resolver
+        self._conn = conn_manager
+
+    async def publish(self, event: Event) -> None:
+        try:
+            audience = await self._resolver.audience(event)
+        except Exception:
+            logger.exception("audience resolution failed for event %s", event.type)
+            return
+        if not audience:
+            return
+        payload = WsOutbound(type=event.type, data=event.data)
+        for uid in audience:
+            try:
+                await self._conn.send_to_user(uid, payload)
+            except Exception:
+                logger.warning("ws send failed; user=%s event=%s", uid, event.type, exc_info=False)
+
+
+# --- module-level singleton ---------------------------------------------------
+
+_bus: EventBus | None = None
+
+
+def set_bus(bus: EventBus) -> None:
+    global _bus
+    _bus = bus
+
+
+def get_bus() -> EventBus:
+    assert _bus is not None, "EventBus not initialized — call init_realtime()"
+    return _bus
