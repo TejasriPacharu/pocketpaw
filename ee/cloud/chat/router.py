@@ -441,12 +441,9 @@ async def _handle_ws_message(websocket: WebSocket, user_id: str, msg: WsInbound)
         await _ws_read_ack(user_id, msg)
     elif msg.type == "room.join":
         if msg.group_id:
-            # TODO(rbac): enforce the user is allowed to see this group. For
-            # now, we trust the REST-layer permission check that populated the
-            # client's group list — the client only joins rooms it has seen
-            # via GET /groups. Typing leakage is bounded to group members in
-            # practice; hardening lands in the RBAC task.
-            manager.join_room(websocket, msg.group_id)
+            members = await GroupService.list_member_ids(msg.group_id)
+            if user_id in members:
+                manager.join_room(websocket, msg.group_id)
     elif msg.type == "room.leave":
         manager.leave_room(websocket)
 

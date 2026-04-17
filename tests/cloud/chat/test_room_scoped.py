@@ -105,3 +105,52 @@ async def test_disconnect_clears_current_room():
     await mgr.disconnect(ws)
 
     assert mgr.current_room(ws) is None
+
+
+@pytest.mark.asyncio
+async def test_room_join_rejects_non_member(monkeypatch):
+    """An authenticated user cannot join a group they are not a member of."""
+    import importlib
+    from unittest.mock import AsyncMock as _AsyncMock
+
+    from ee.cloud.chat.schemas import WsInbound
+
+    router_mod = importlib.import_module("ee.cloud.chat.router")
+
+    async def members(_gid: str) -> list[str]:
+        return ["someone-else", "another-user"]
+
+    monkeypatch.setattr(router_mod.GroupService, "list_member_ids", members)
+    monkeypatch.setattr(router_mod.manager, "join_room", _AsyncMock())
+
+    ws = _AsyncMock()
+    await router_mod._handle_ws_message(
+        ws, user_id="intruder", msg=WsInbound(type="room.join", group_id="g1")
+    )
+
+    router_mod.manager.join_room.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_room_join_allows_member(monkeypatch):
+    """A group member can join their own group."""
+    import importlib
+    from unittest.mock import MagicMock
+
+    from ee.cloud.chat.schemas import WsInbound
+
+    router_mod = importlib.import_module("ee.cloud.chat.router")
+
+    async def members(_gid: str) -> list[str]:
+        return ["u1", "u2"]
+
+    join_spy = MagicMock()
+    monkeypatch.setattr(router_mod.GroupService, "list_member_ids", members)
+    monkeypatch.setattr(router_mod.manager, "join_room", join_spy)
+
+    ws = MagicMock()
+    await router_mod._handle_ws_message(
+        ws, user_id="u1", msg=WsInbound(type="room.join", group_id="g1")
+    )
+
+    join_spy.assert_called_once_with(ws, "g1")

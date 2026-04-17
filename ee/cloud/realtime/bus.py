@@ -31,9 +31,11 @@ class InProcessBus:
         self._conn = conn_manager
 
     async def publish(self, event: Event) -> None:
-        # Deferred import: chat.schemas pulls in chat.router, and routing
-        # modules publish events at import time on the way down — avoid the
-        # circular import by loading the wire envelope lazily.
+        # WsOutbound is imported lazily: ee.cloud.chat.schemas is the lowest
+        # reachable node that also sits on the message-send import chain, so
+        # pytest collection orderings that load services before realtime can
+        # see a partially-initialised bus if we import at module top. Tested:
+        # reverts to ImportError under pytest collection of test_bus.py.
         from ee.cloud.chat.schemas import WsOutbound
 
         try:
@@ -48,7 +50,7 @@ class InProcessBus:
             try:
                 await self._conn.send_to_user(uid, payload)
             except Exception:
-                logger.warning("ws send failed; user=%s event=%s", uid, event.type, exc_info=False)
+                logger.warning("ws send failed; user=%s event=%s", uid, event.type, exc_info=True)
 
 
 # --- module-level singleton ---------------------------------------------------
