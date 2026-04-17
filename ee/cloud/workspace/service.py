@@ -10,6 +10,18 @@ from beanie import PydanticObjectId
 from ee.cloud.models.invite import Invite
 from ee.cloud.models.user import User, WorkspaceMembership
 from ee.cloud.models.workspace import Workspace, WorkspaceSettings
+from ee.cloud.realtime.bus import get_resolver
+from ee.cloud.realtime.emit import emit
+from ee.cloud.realtime.events import (
+    WorkspaceDeleted,
+    WorkspaceInviteAccepted,
+    WorkspaceInviteCreated,
+    WorkspaceInviteRevoked,
+    WorkspaceMemberAdded,
+    WorkspaceMemberRemoved,
+    WorkspaceMemberRole,
+    WorkspaceUpdated,
+)
 from ee.cloud.shared.errors import ConflictError, Forbidden, NotFound, SeatLimitError
 from ee.cloud.shared.events import event_bus
 from ee.cloud.workspace.schemas import (
@@ -96,6 +108,14 @@ class WorkspaceService:
         user.active_workspace = str(ws.id)
         await user.save()
 
+        wid = str(ws.id)
+        await emit(
+            WorkspaceMemberAdded(
+                data={"workspace_id": wid, "user_id": str(user.id), "role": "owner"}
+            )
+        )
+        get_resolver().invalidate_workspace(wid)
+
         return _workspace_response(ws, member_count=1)
 
     @staticmethod
@@ -124,6 +144,10 @@ class WorkspaceService:
 
         await ws.save()
         count = await _count_members(workspace_id)
+
+        patched = body.model_dump(exclude_unset=True)
+        await emit(WorkspaceUpdated(data={"workspace_id": workspace_id, **patched}))
+
         return _workspace_response(ws, member_count=count)
 
     @staticmethod
@@ -135,6 +159,9 @@ class WorkspaceService:
 
         ws.deleted_at = datetime.now(UTC)
         await ws.save()
+
+        await emit(WorkspaceDeleted(data={"workspace_id": workspace_id}))
+        get_resolver().invalidate_workspace(workspace_id)
 
     @staticmethod
     async def list_for_user(user: User) -> list[dict]:
@@ -206,6 +233,13 @@ class WorkspaceService:
         target_membership.role = role
         await target.save()
 
+        await emit(
+            WorkspaceMemberRole(
+                data={"workspace_id": workspace_id, "user_id": target_user_id, "role": role}
+            )
+        )
+        get_resolver().invalidate_workspace(workspace_id)
+
     @staticmethod
     async def remove_member(workspace_id: str, target_user_id: str, user: User) -> None:
         """Remove a member. Role check at route layer; owner-removal invariant
@@ -240,6 +274,11 @@ class WorkspaceService:
                 "removed_by": str(user.id),
             },
         )
+
+        await emit(
+            WorkspaceMemberRemoved(data={"workspace_id": workspace_id, "user_id": target_user_id})
+        )
+        get_resolver().invalidate_workspace(workspace_id)
 
     # ------------------------------------------------------------------
     # Invites
@@ -303,6 +342,17 @@ class WorkspaceService:
         )
         await invite.insert()
 
+        # Emit invite.created (token deliberately omitted from payload).
+        await emit(
+            WorkspaceInviteCreated(
+                data={
+                    "workspace_id": workspace_id,
+                    "invite_id": str(invite.id),
+                    "email": body.email,
+                }
+            )
+        )
+
         return _invite_response(invite)
 
     @staticmethod
@@ -362,6 +412,18 @@ class WorkspaceService:
             },
         )
 
+        wid = invite.workspace
+        uid = str(user.id)
+        await emit(
+            WorkspaceInviteAccepted(
+                data={"workspace_id": wid, "invite_id": str(invite.id), "user_id": uid}
+            )
+        )
+        await emit(
+            WorkspaceMemberAdded(data={"workspace_id": wid, "user_id": uid, "role": invite.role})
+        )
+        get_resolver().invalidate_workspace(wid)
+
     @staticmethod
     async def revoke_invite(workspace_id: str, invite_id: str, user: User) -> None:
         """Revoke an invite. Role check at route layer."""
@@ -371,6 +433,10 @@ class WorkspaceService:
 
         invite.revoked = True
         await invite.save()
+
+        await emit(
+            WorkspaceInviteRevoked(data={"workspace_id": workspace_id, "invite_id": invite_id})
+        )
 
     # ------------------------------------------------------------------
     # Realtime helpers (audience lookups)
