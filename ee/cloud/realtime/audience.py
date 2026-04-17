@@ -95,12 +95,18 @@ class AudienceResolver:
             return [d["user_id"]]
 
         # --- Messages -----------------------------------------------------------
+        if t == "message.new":
+            members = await self._group(d["group_id"])
+            sender = d.get("sender")  # MessageResponse.sender
+            if sender:
+                members = [m for m in members if m != sender]
+            return members
         if t in {
-            "message.new",
             "message.edited",
             "message.deleted",
             "message.reaction.added",
             "message.reaction.removed",
+            "message.reaction",
             "message.read",
         }:
             return await self._group(d["group_id"])

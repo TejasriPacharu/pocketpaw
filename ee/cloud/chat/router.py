@@ -451,25 +451,7 @@ async def _ws_message_send(user_id: str, msg: WsInbound) -> None:
         mentions=msg.mentions,
         attachments=msg.attachments,
     )
-    result = await MessageService.send_message(msg.group_id, user_id, body)
-
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-
-    group = await Group.get(PydanticObjectId(msg.group_id))
-    if group:
-        result_data = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-        await manager.broadcast_to_group(
-            msg.group_id,
-            group.members,
-            WsOutbound(type="message.new", data=result_data),
-            exclude_user=user_id,
-        )
-        await manager.send_to_user(
-            user_id,
-            WsOutbound(type="message.sent", data=result_data),
-        )
+    await MessageService.send_message(msg.group_id, user_id, body)
 
 
 async def _ws_message_edit(user_id: str, msg: WsInbound) -> None:
@@ -480,51 +462,12 @@ async def _ws_message_edit(user_id: str, msg: WsInbound) -> None:
         msg.message_id, user_id, EditMessageRequest(content=msg.content)
     )
 
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-    from ee.cloud.models.message import Message
-
-    message = await Message.get(PydanticObjectId(msg.message_id))
-    if message:
-        group = await Group.get(PydanticObjectId(message.group))
-        if group:
-            await manager.broadcast_to_group(
-                message.group,
-                group.members,
-                WsOutbound(
-                    type="message.edited",
-                    data={
-                        "message_id": msg.message_id,
-                        "content": msg.content,
-                        "edited_at": str(message.edited_at),
-                    },
-                ),
-            )
-
 
 async def _ws_message_delete(user_id: str, msg: WsInbound) -> None:
     if not msg.message_id:
         return
 
-    # Fetch message before deleting so we know which group to broadcast to
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-    from ee.cloud.models.message import Message
-
-    message = await Message.get(PydanticObjectId(msg.message_id))
-
     await MessageService.delete_message(msg.message_id, user_id)
-
-    if message:
-        group = await Group.get(PydanticObjectId(message.group))
-        if group:
-            await manager.broadcast_to_group(
-                message.group,
-                group.members,
-                WsOutbound(type="message.deleted", data={"message_id": msg.message_id}),
-            )
 
 
 async def _ws_message_react(user_id: str, msg: WsInbound) -> None:
@@ -532,28 +475,6 @@ async def _ws_message_react(user_id: str, msg: WsInbound) -> None:
         return
 
     await MessageService.toggle_reaction(msg.message_id, user_id, msg.emoji)
-
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-    from ee.cloud.models.message import Message
-
-    message = await Message.get(PydanticObjectId(msg.message_id))
-    if message:
-        group = await Group.get(PydanticObjectId(message.group))
-        if group:
-            await manager.broadcast_to_group(
-                message.group,
-                group.members,
-                WsOutbound(
-                    type="message.reaction",
-                    data={
-                        "message_id": msg.message_id,
-                        "emoji": msg.emoji,
-                        "user_id": user_id,
-                    },
-                ),
-            )
 
 
 async def _ws_typing(user_id: str, msg: WsInbound, *, active: bool) -> None:

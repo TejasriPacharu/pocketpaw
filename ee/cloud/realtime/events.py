@@ -151,6 +151,11 @@ class MessageReactionRemoved(Event):
 
 
 @dataclass
+class MessageReaction(Event):
+    EVENT_TYPE: ClassVar[str] = "message.reaction"
+
+
+@dataclass
 class MessageRead(Event):
     EVENT_TYPE: ClassVar[str] = "message.read"
 

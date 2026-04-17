@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 from typing import Protocol
 
-from ee.cloud.chat.schemas import WsOutbound
 from ee.cloud.realtime.audience import AudienceResolver
 from ee.cloud.realtime.events import Event
 
@@ -32,6 +31,11 @@ class InProcessBus:
         self._conn = conn_manager
 
     async def publish(self, event: Event) -> None:
+        # Deferred import: chat.schemas pulls in chat.router, and routing
+        # modules publish events at import time on the way down — avoid the
+        # circular import by loading the wire envelope lazily.
+        from ee.cloud.chat.schemas import WsOutbound
+
         try:
             audience = await self._resolver.audience(event)
         except Exception:
