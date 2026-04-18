@@ -25,10 +25,25 @@ from datetime import UTC, datetime
 logger = logging.getLogger(__name__)
 
 # In-memory cache of session metadata so we don't re-query Mongo on every
-# message. Keyed by chat_id (== Session.sessionId).
+# message. Keyed by the normalized chat_id (== Session.sessionId).
 _session_cache: dict[str, dict] = {}
 # Accumulate streaming chunks per chat until stream_end.
 _stream_buffers: dict[str, str] = {}
+
+# Channel label prefixed onto raw bus chat_ids to match Session.sessionId
+# and the key that MongoMemoryStore writes via `_normalize_session_key`.
+# The /chat/stream router strips "websocket_" from incoming session ids
+# before publishing to the bus; we re-add it here so all three storage
+# paths (Session docs, memory-stored messages, attachment-stored messages)
+# agree on a single session_key format.
+_WS_SAFE_PREFIX = "websocket_"
+
+
+def _safe_chat_id(chat_id: str) -> str:
+    """Return the underscore-prefixed form used across Mongo."""
+    if chat_id.startswith(_WS_SAFE_PREFIX):
+        return chat_id
+    return f"{_WS_SAFE_PREFIX}{chat_id}"
 
 
 def register_chat_persistence() -> None:
@@ -54,14 +69,21 @@ async def save_user_message(
     content: str,
     attachments: list[dict] | None = None,
 ) -> None:
-    """Persist a user chat message. ``chat_id`` must be the Session.sessionId.
+    """Persist a user chat message.
+
+    ``chat_id`` may be either the raw bus chat_id (``"522bd857d048"``) or
+    the already-prefixed ``Session.sessionId`` form
+    (``"websocket_522bd857d048"``) — we normalize internally so the message
+    ``session_key`` matches both ``Session.sessionId`` and the format that
+    ``MongoMemoryStore`` uses for agent-memory rows.
 
     ``attachments``, when present, is a list of Attachment-shaped dicts
     (``{type, url, name, meta}``). They are stored on the Message doc so
     reloaded history shows the uploaded files.
     """
     try:
-        ctx = await _resolve_session_context(chat_id)
+        safe_id = _safe_chat_id(chat_id)
+        ctx = await _resolve_session_context(safe_id)
         if not ctx:
             logger.warning("no session context for chat_id=%s — user message dropped", chat_id)
             return
@@ -79,7 +101,11 @@ async def save_user_message(
 async def _on_outbound_message(message) -> None:
     """Accumulate agent stream chunks and save final message to MongoDB."""
     try:
-        chat_id = message.chat_id
+        # Bus messages carry the raw chat_id (stripped of any safe-key prefix
+        # by /chat/stream). Normalize to the underscore form so the resulting
+        # ``session_key`` matches Session.sessionId and the format written by
+        # MongoMemoryStore for agent-memory rows.
+        chat_id = _safe_chat_id(message.chat_id)
 
         if message.is_stream_chunk:
             _stream_buffers[chat_id] = _stream_buffers.get(chat_id, "") + (message.content or "")
@@ -132,9 +158,11 @@ async def _resolve_session_context(chat_id: str) -> dict | None:
 
     from ee.cloud.models.session import Session
 
+    # Callers in this module pre-normalize to the underscore form, so the
+    # Session.sessionId lookup is a direct hit for any session created by
+    # POST /sessions or the auto-create fallback below.
     session = await Session.find_one(Session.sessionId == chat_id)
     if session is None:
-        # Auto-create a pocket session so messages have a key.
         session = await _auto_create_pocket_session(chat_id)
         if session is None:
             return None

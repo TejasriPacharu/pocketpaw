@@ -182,10 +182,16 @@ async def startup_event(
         mongo_uri = os.environ.get("CLOUD_MONGODB_URI", "mongodb://localhost:27017/paw-enterprise")
         await init_cloud_db(mongo_uri)
         # Seed default admin user and workspace
-        from ee.cloud.auth.core import seed_admin, seed_workspace
+        from ee.cloud.auth.core import (
+            ensure_default_agent_all_workspaces,
+            seed_admin,
+            seed_workspace,
+        )
 
         admin = await seed_admin()
         await seed_workspace(admin)
+        # Back-fill the pocketpaw agent for workspaces that predate agent seeding.
+        await ensure_default_agent_all_workspaces()
     except ImportError:
         logger.debug("Enterprise cloud module not available — skipping MongoDB init")
     except Exception as exc:

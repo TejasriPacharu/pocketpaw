@@ -217,7 +217,11 @@ async def _send_message(chat_request: ChatRequest) -> str:
 
     # Persistence-friendly Attachment payloads for Mongo history. Kept on the
     # original upload URL (not the resolved disk path) so the FE can <img
-    # src> the stored message on reload without server-side rewriting.
+    # src> the stored message on reload without server-side rewriting. These
+    # travel through ``meta["attachments"]`` so the single write path in
+    # ``MongoMemoryStore.save`` owns persistence — writing directly from
+    # here AND letting MongoMemoryStore write from the agent-loop path
+    # produced two user rows per send (one with attachments, one without).
     attachments: list[dict] = []
     for original_url, r in zip(chat_request.media or [], resolved, strict=False):
         if r.record is None:
@@ -239,6 +243,8 @@ async def _send_message(chat_request: ChatRequest) -> str:
                 },
             }
         )
+    if attachments:
+        meta["attachments"] = attachments
 
     msg = InboundMessage(
         channel=Channel.WEBSOCKET,
@@ -250,17 +256,6 @@ async def _send_message(chat_request: ChatRequest) -> str:
     )
     bus = get_message_bus()
     await bus.publish_inbound(msg)
-
-    # Persist the user message with attachments to Mongo so reloaded history
-    # shows uploads. Isolated import so OSS (no EE) deployments don't fail.
-    try:
-        from ee.cloud.shared.chat_persistence import save_user_message
-
-        await save_user_message(chat_id, chat_request.content, attachments=attachments or None)
-    except ImportError:
-        pass
-    except Exception:
-        logger.exception("chat_persistence.save_user_message failed")
 
     return chat_id
 

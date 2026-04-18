@@ -78,6 +78,41 @@ class TestSeedDefaultAgent:
         assert a1.workspace != a2.workspace
 
 
+class TestEnsureDefaultAgentBackfill:
+    async def test_backfills_existing_workspaces(self, beanie_db) -> None:
+        from ee.cloud.auth.core import ensure_default_agent_all_workspaces
+        from ee.cloud.models.agent import Agent
+        from ee.cloud.models.workspace import Workspace, WorkspaceSettings
+
+        ws1 = Workspace(name="A", slug="a", owner="u-1", settings=WorkspaceSettings())
+        ws2 = Workspace(name="B", slug="b", owner="u-2", settings=WorkspaceSettings())
+        await ws1.insert()
+        await ws2.insert()
+
+        seeded = await ensure_default_agent_all_workspaces()
+        assert seeded == 2
+
+        a1 = await Agent.find_one(Agent.workspace == str(ws1.id), Agent.slug == "pocketpaw")
+        a2 = await Agent.find_one(Agent.workspace == str(ws2.id), Agent.slug == "pocketpaw")
+        assert a1 is not None and a2 is not None
+        assert a1.owner == "u-1"
+        assert a2.owner == "u-2"
+
+    async def test_backfill_is_idempotent(self, beanie_db) -> None:
+        from ee.cloud.auth.core import ensure_default_agent_all_workspaces
+        from ee.cloud.models.agent import Agent
+        from ee.cloud.models.workspace import Workspace, WorkspaceSettings
+
+        ws = Workspace(name="A", slug="a", owner="u-1", settings=WorkspaceSettings())
+        await ws.insert()
+
+        await ensure_default_agent_all_workspaces()
+        await ensure_default_agent_all_workspaces()
+
+        count = await Agent.find(Agent.workspace == str(ws.id), Agent.slug == "pocketpaw").count()
+        assert count == 1
+
+
 class TestSaveUserMessageAttachments:
     async def _session(self, beanie_db, chat_id: str = "sess-1") -> None:
         """Make a pocket session + workspace-bearing user so auto-create works."""
@@ -113,7 +148,7 @@ class TestSaveUserMessageAttachments:
         from ee.cloud.shared.chat_persistence import _session_cache, save_user_message
 
         _session_cache.clear()
-        await self._session(beanie_db)
+        await self._session(beanie_db, chat_id="websocket_sess-1")
 
         attachments = [
             {
@@ -123,11 +158,11 @@ class TestSaveUserMessageAttachments:
                 "meta": {"mime": "image/png", "size": 414255, "id": "abc123"},
             }
         ]
-        await save_user_message("sess-1", "look at this", attachments=attachments)
+        await save_user_message("websocket_sess-1", "look at this", attachments=attachments)
 
         msg = await Message.find_one(
             Message.context_type == "pocket",
-            Message.session_key == "sess-1",
+            Message.session_key == "websocket_sess-1",
         )
         assert msg is not None
         assert msg.content == "look at this"
@@ -144,14 +179,167 @@ class TestSaveUserMessageAttachments:
         from ee.cloud.shared.chat_persistence import _session_cache, save_user_message
 
         _session_cache.clear()
-        await self._session(beanie_db, chat_id="sess-plain")
+        await self._session(beanie_db, chat_id="websocket_sess-plain")
 
-        await save_user_message("sess-plain", "hi")
+        await save_user_message("websocket_sess-plain", "hi")
 
         msg = await Message.find_one(
             Message.context_type == "pocket",
-            Message.session_key == "sess-plain",
+            Message.session_key == "websocket_sess-plain",
         )
+        assert msg is not None
+        assert msg.attachments == []
+
+    async def test_bare_chat_id_normalizes_to_prefixed_session(self, beanie_db) -> None:
+        """``/chat/stream`` strips the ``websocket_`` prefix before writing
+        and ``MongoMemoryStore`` normalizes the bus-form ``"websocket:..."``
+        to ``"websocket_..."`` — ``save_user_message`` must match the latter
+        so the user and assistant messages share a single ``session_key``.
+        """
+        from ee.cloud.models.message import Message
+        from ee.cloud.models.session import Session
+        from ee.cloud.shared.chat_persistence import _session_cache, save_user_message
+
+        _session_cache.clear()
+        # Create the session as POST /sessions would — with the prefixed form.
+        await self._session(beanie_db, chat_id="prefixed-stub")
+        existing = await Session.find_one(Session.sessionId == "prefixed-stub")
+        assert existing is not None
+        existing.sessionId = "websocket_abc123"
+        await existing.save()
+
+        # Client sends "websocket_abc123"; router strips to "abc123" before
+        # calling save_user_message.
+        await save_user_message("abc123", "hello via stripped id")
+
+        # The message should land on the pre-existing prefixed session.
+        msg = await Message.find_one(
+            Message.context_type == "pocket",
+            Message.session_key == "websocket_abc123",
+        )
+        assert msg is not None
+        assert msg.content == "hello via stripped id"
+
+        # And no shadow session with the bare id should have been created.
+        shadow = await Session.find_one(Session.sessionId == "abc123")
+        assert shadow is None
+
+    async def test_already_prefixed_chat_id_is_idempotent(self, beanie_db) -> None:
+        """Callers that already pass the safe-key form must not be prefixed
+        a second time (``websocket_websocket_...``)."""
+        from ee.cloud.models.message import Message
+        from ee.cloud.models.session import Session
+        from ee.cloud.shared.chat_persistence import _session_cache, save_user_message
+
+        _session_cache.clear()
+        await self._session(beanie_db, chat_id="prefixed-stub")
+        existing = await Session.find_one(Session.sessionId == "prefixed-stub")
+        assert existing is not None
+        existing.sessionId = "websocket_xyz789"
+        await existing.save()
+
+        await save_user_message("websocket_xyz789", "already prefixed")
+
+        msg = await Message.find_one(
+            Message.context_type == "pocket",
+            Message.session_key == "websocket_xyz789",
+        )
+        assert msg is not None
+        # Guard against accidental double-prefixing.
+        doubled = await Message.find_one(Message.session_key == "websocket_websocket_xyz789")
+        assert doubled is None
+
+
+class TestMongoMemoryStoreAttachments:
+    """The canonical user-message write path since we removed the duplicate
+    ``chat_persistence.save_user_message`` call out of ``/chat/stream``.
+    Attachments arrive via ``entry.metadata["attachments"]`` (piped through
+    InboundMessage → agent loop → memory), and MongoMemoryStore persists
+    them on the same row as the content — not a second row."""
+
+    async def _session(self, workspace_id: str = "ws-1") -> str:
+        from ee.cloud.models.session import Session
+        from ee.cloud.models.user import User, WorkspaceMembership
+
+        user = User(
+            email="m@example.com",
+            hashed_password="x",
+            is_active=True,
+            is_verified=True,
+            name="m",
+            workspaces=[WorkspaceMembership(workspace=workspace_id, role="owner")],
+        )
+        await user.insert()
+        session = Session(
+            sessionId="websocket_mm-1",
+            context_type="pocket",
+            workspace=workspace_id,
+            owner=str(user.id),
+            title="Chat",
+        )
+        await session.insert()
+        return str(user.id)
+
+    async def test_attachments_from_metadata_persist_on_single_row(self, beanie_db) -> None:
+        from ee.cloud.memory.mongo_store import MongoMemoryStore
+        from ee.cloud.models.message import Message
+        from pocketpaw.memory.protocol import MemoryEntry, MemoryType
+
+        await self._session()
+
+        store = MongoMemoryStore()
+        entry = MemoryEntry(
+            id="",
+            type=MemoryType.SESSION,
+            content="What do you see in this image?",
+            role="user",
+            session_key="websocket:mm-1",
+            metadata={
+                "attachments": [
+                    {
+                        "type": "image",
+                        "url": "/api/v1/uploads/abc",
+                        "name": "chart.png",
+                        "meta": {"mime": "image/png", "size": 137747, "id": "abc"},
+                    }
+                ]
+            },
+        )
+        await store.save(entry)
+
+        rows = await Message.find(
+            Message.context_type == "pocket",
+            Message.session_key == "websocket_mm-1",
+        ).to_list()
+        assert len(rows) == 1, f"expected a single message row, got {len(rows)}"
+        [msg] = rows
+        assert msg.content == "What do you see in this image?"
+        assert len(msg.attachments) == 1
+        att = msg.attachments[0]
+        assert att.type == "image"
+        assert att.url == "/api/v1/uploads/abc"
+        assert att.name == "chart.png"
+        assert att.meta["size"] == 137747
+
+    async def test_no_attachments_key_yields_empty_list(self, beanie_db) -> None:
+        from ee.cloud.memory.mongo_store import MongoMemoryStore
+        from ee.cloud.models.message import Message
+        from pocketpaw.memory.protocol import MemoryEntry, MemoryType
+
+        await self._session()
+
+        store = MongoMemoryStore()
+        entry = MemoryEntry(
+            id="",
+            type=MemoryType.SESSION,
+            content="just text",
+            role="user",
+            session_key="websocket:mm-1",
+            metadata={},
+        )
+        await store.save(entry)
+
+        msg = await Message.find_one(Message.session_key == "websocket_mm-1")
         assert msg is not None
         assert msg.attachments == []
 

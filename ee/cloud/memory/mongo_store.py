@@ -29,7 +29,7 @@ from beanie import PydanticObjectId
 from bson.errors import InvalidId
 
 from ee.cloud.memory.documents import MemoryFactDoc
-from ee.cloud.models.message import Message
+from ee.cloud.models.message import Attachment, Message
 from ee.cloud.models.session import Session
 from pocketpaw.memory.protocol import MemoryEntry, MemoryType  # type: ignore[import-untyped]
 
@@ -138,15 +138,28 @@ class MongoMemoryStore:
             sender_type = "agent" if role == "assistant" else "user"
             normalized_key = _normalize_session_key(entry.session_key)
 
-            # Dedup against chat_persistence: the chat endpoint persists the
-            # user message (with attachments) the moment it arrives, and the
-            # agent loop also calls us with the same content for context.
-            # Without this check both land as separate Message rows and the
-            # UI renders the user's send twice on reload. Window is 30s so
-            # normal re-sends of identical text still persist.
+            # Dedup against a same-turn re-write. The main duplicate source
+            # (chat_persistence writing in parallel) is gone — we now own
+            # the single write path — but keep this guard so agent-loop
+            # retries of identical content don't land twice.
             existing = await _find_recent_twin(normalized_key, role, entry.content)
             if existing is not None:
                 return str(existing.id)
+
+            # Attachments ride on the InboundMessage metadata from
+            # /chat/stream so we can persist them on the same Message row
+            # instead of double-writing. Malformed entries are skipped but
+            # don't abort the save — the text content still gets through.
+            attachment_docs: list[Attachment] = []
+            raw_attachments = (entry.metadata or {}).get("attachments") or []
+            if isinstance(raw_attachments, list):
+                for a in raw_attachments:
+                    if not isinstance(a, dict):
+                        continue
+                    try:
+                        attachment_docs.append(Attachment(**a))
+                    except Exception:
+                        logger.warning("skipping malformed attachment on pocket message: %r", a)
 
             workspace_id = await _resolve_session_workspace(normalized_key, entry)
             msg = Message(
@@ -156,6 +169,7 @@ class MongoMemoryStore:
                 sender_type=sender_type,
                 content=entry.content,
                 workspace_id=workspace_id,
+                attachments=attachment_docs,
             )
             await msg.insert()
             return str(msg.id)
