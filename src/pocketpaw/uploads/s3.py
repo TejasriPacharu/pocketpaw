@@ -15,13 +15,21 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 from pocketpaw.uploads.adapter import StorageAdapter, StoredObject
 from pocketpaw.uploads.errors import NotFound, StorageFailure
 
+logger = logging.getLogger(__name__)
+
 _CHUNK_SIZE = 64 * 1024
+# Above this, in-memory buffering in put() starts eating real RAM. Chat
+# attachments default to 25 MiB, so 64 MiB gives headroom without surprise
+# OOM. If max_file_bytes is raised past this, switch to multipart_upload
+# instead of buffering the whole body.
+_MEM_BUFFER_WARN_BYTES = 64 * 1024 * 1024
 
 
 class S3StorageAdapter(StorageAdapter):
@@ -66,12 +74,16 @@ class S3StorageAdapter(StorageAdapter):
         # memory is fine — swap to multipart_upload later if caps grow.
         buf = io.BytesIO()
         size = 0
-        try:
-            async for chunk in stream:
-                buf.write(chunk)
-                size += len(chunk)
-        except Exception as exc:  # propagate TooLarge etc. untouched
-            raise exc
+        async for chunk in stream:
+            buf.write(chunk)
+            size += len(chunk)
+        if size > _MEM_BUFFER_WARN_BYTES:
+            logger.warning(
+                "S3 put buffering %d bytes in memory for key=%s — "
+                "consider multipart_upload if max_file_bytes was raised",
+                size,
+                key,
+            )
         buf.seek(0)
 
         try:

@@ -265,6 +265,24 @@ async def seed_workspace(admin: User | None = None) -> Workspace | None:
         return None
 
 
+async def ensure_default_agent_all_workspaces() -> int:
+    """Back-fill the pocketpaw agent for every existing workspace.
+
+    ``seed_workspace`` only runs on fresh installs — workspaces that predate
+    agent seeding never got one. Call this on every boot so the DM target
+    exists regardless of install age. Returns the count seeded this run.
+    """
+    seeded = 0
+    async for ws in Workspace.find_all():
+        try:
+            agent = await seed_default_agent(str(ws.id), str(ws.owner))
+            if agent is not None:
+                seeded += 1
+        except Exception as exc:
+            logger.warning("Failed to back-fill pocketpaw agent for ws=%s: %s", ws.id, exc)
+    return seeded
+
+
 async def seed_default_agent(workspace_id: str, owner_id: str) -> Agent | None:  # noqa: F821
     """Create the default "pocketpaw" Agent for a workspace if missing.
 

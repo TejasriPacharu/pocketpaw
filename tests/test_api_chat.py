@@ -297,3 +297,29 @@ class TestSendMessageResolvesMedia:
         assert msg.media == ["/already/here.pdf"]
         # Passthrough entries yield no media_info; key should be absent.
         assert "media_info" not in msg.metadata
+
+
+class TestChatRequestAliases:
+    """Frontends (paw-enterprise) post camelCase keys. Without an alias config
+    Pydantic silently drops ``sessionId`` / ``agentId`` — this causes every
+    request to be treated as a new conversation and the server spawns a fresh
+    chat id. These tests pin the alias behaviour so the regression stays dead.
+    """
+
+    def test_camelcase_session_id_binds(self):
+        from pocketpaw.api.v1.schemas.chat import ChatRequest
+
+        req = ChatRequest.model_validate({"content": "hi", "sessionId": "websocket_abc"})
+        assert req.session_id == "websocket_abc"
+
+    def test_snake_case_session_id_still_binds(self):
+        from pocketpaw.api.v1.schemas.chat import ChatRequest
+
+        req = ChatRequest.model_validate({"content": "hi", "session_id": "websocket_abc"})
+        assert req.session_id == "websocket_abc"
+
+    def test_camelcase_agent_id_binds(self):
+        from pocketpaw.api.v1.schemas.chat import ChatRequest
+
+        req = ChatRequest.model_validate({"content": "hi", "agentId": "agent-123"})
+        assert req.agent_id == "agent-123"
