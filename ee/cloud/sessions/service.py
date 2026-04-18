@@ -59,6 +59,7 @@ class SessionService:
 
         session = Session(
             sessionId=sid,
+            context_type="group" if body.group_id else "pocket",
             workspace=workspace_id,
             owner=user_id,
             title=body.title,
@@ -88,6 +89,29 @@ class SessionService:
             await Session.find(
                 Session.workspace == workspace_id,
                 Session.owner == user_id,
+                Session.deleted_at == None,  # noqa: E711
+            )
+            .sort(-Session.lastActivity)
+            .to_list()
+        )
+        return [_session_response(s) for s in sessions]
+
+    @staticmethod
+    async def list_by_agent(
+        workspace_id: str,
+        user_id: str,
+        agent_id: str,
+    ) -> list[dict]:
+        """List a user's DM sessions for a specific agent, newest first.
+
+        Used by the frontend to resolve the DM room for an agent — pick the
+        most-recent session to resume, or show the full list for history.
+        """
+        sessions = (
+            await Session.find(
+                Session.workspace == workspace_id,
+                Session.owner == user_id,
+                Session.agent == agent_id,
                 Session.deleted_at == None,  # noqa: E711
             )
             .sort(-Session.lastActivity)
@@ -155,59 +179,67 @@ class SessionService:
     # -----------------------------------------------------------------
 
     @staticmethod
-    async def get_history(session_id: str, user_id: str) -> dict:
-        """Get session chat history from runtime file memory."""
+    async def get_history(session_id: str, user_id: str, limit: int = 100) -> dict:
+        """Return session chat history from the unified Mongo messages store.
+
+        Resolves the Session doc first, then reads messages by context:
+        group sessions fetch from `messages` filtered by group; pocket
+        sessions fetch by session_key. No file-memory fallback — ee ships
+        with MongoDB-backed memory.
+        """
+        from ee.cloud.models.message import Message
+
         session = await SessionService._get_session(session_id, user_id)
 
-        # Try cloud Messages first (group chat)
-        if session.group:
-            try:
-                from ee.cloud.models.message import Message
-
-                messages = (
-                    await Message.find(
-                        Message.group == session.group,
-                        Message.deleted == False,  # noqa: E711, E712
-                    )
-                    .sort("createdAt")
-                    .limit(100)
-                    .to_list()
-                )
-                if messages:
-                    return {
-                        "messages": [
-                            {
-                                "_id": str(m.id),
-                                "role": "assistant" if m.sender_type == "agent" else "user",
-                                "content": m.content,
-                                "sender": m.sender,
-                                "senderType": m.sender_type,
-                                "createdAt": m.createdAt.isoformat() if m.createdAt else None,
-                            }
-                            for m in messages
-                        ]
+        if session.context_type == "group" and session.group:
+            messages = (
+                await Message.find(
+                    {
+                        "context_type": "group",
+                        "group": session.group,
+                        "deleted": False,
                     }
-            except Exception:
-                pass
+                )
+                .sort("createdAt")
+                .limit(limit)
+                .to_list()
+            )
+            return {
+                "messages": [
+                    {
+                        "_id": str(m.id),
+                        "role": "assistant" if m.sender_type == "agent" else "user",
+                        "content": m.content,
+                        "sender": m.sender,
+                        "senderType": m.sender_type,
+                        "createdAt": m.createdAt.isoformat() if m.createdAt else None,
+                        "attachments": [a.model_dump() for a in (m.attachments or [])],
+                    }
+                    for m in messages
+                ]
+            }
 
-        # Try runtime file-based memory
-        try:
-            from pocketpaw.memory.manager import MemoryManager
-
-            manager = MemoryManager()
-            sid = session.sessionId
-            # Try all possible key formats
-            for key in [sid, sid.replace("_", ":", 1), f"websocket:{sid}"]:
-                try:
-                    entries = await manager.get_session_history(key)
-                    if entries:
-                        return {"messages": entries}
-                except Exception:
-                    continue
-        except Exception:
-            pass
-
-        return {"messages": []}
+        # Pocket context — keyed by session_key, which mirrors sessionId.
+        messages = (
+            await Message.find({"context_type": "pocket", "session_key": session.sessionId})
+            .sort("createdAt")
+            .limit(limit)
+            .to_list()
+        )
+        return {
+            "messages": [
+                {
+                    "_id": str(m.id),
+                    "role": m.role or "user",
+                    "content": m.content,
+                    "sender": m.sender,
+                    "senderType": m.sender_type,
+                    "createdAt": m.createdAt.isoformat() if m.createdAt else None,
+                    "attachments": [a.model_dump() for a in (m.attachments or [])],
+                }
+                for m in messages
+            ]
+        }
 
     # -----------------------------------------------------------------
     # Touch

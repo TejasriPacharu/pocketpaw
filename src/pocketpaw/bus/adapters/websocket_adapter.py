@@ -134,15 +134,17 @@ class WebSocketAdapter(BaseChannelAdapter):
 
             await self._publish_inbound(message)
 
-            # Persist user message to MongoDB (cloud persistence bridge)
+            # Persist user message to MongoDB (cloud persistence bridge).
+            # Log at WARNING so silent persistence failures are visible in
+            # dev when users report "my messages aren't saving".
             try:
                 from ee.cloud.shared.chat_persistence import save_user_message
 
                 await save_user_message(chat_id, content)
             except ImportError:
-                pass  # ee/cloud not available
+                logger.warning("ee/cloud chat_persistence unavailable — user message not saved")
             except Exception:
-                pass  # Non-fatal
+                logger.exception("Failed to persist user message via ee/cloud")
         # Other actions (settings, tools) handled separately
 
     async def send(self, message: OutboundMessage) -> None:

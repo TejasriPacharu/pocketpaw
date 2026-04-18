@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
+from typing import cast
 
 from beanie import PydanticObjectId
 
@@ -54,10 +55,14 @@ def _message_response(msg: Message) -> dict:
     }
 
 
-async def _get_message_or_404(message_id: str) -> Message:
-    """Load a non-deleted message by ID or raise NotFound."""
+async def _get_group_message_or_404(message_id: str) -> Message:
+    """Load a non-deleted group-context message or raise NotFound.
+
+    Pocket-context messages are not addressable via the group chat routes —
+    if the id resolves to a pocket row it's treated as not found.
+    """
     msg = await Message.get(PydanticObjectId(message_id))
-    if not msg or msg.deleted:
+    if not msg or msg.deleted or msg.context_type != "group" or not msg.group:
         raise NotFound("message", message_id)
     return msg
 
@@ -88,6 +93,7 @@ class MessageService:
         attachments = [Attachment(**a) for a in body.attachments]
 
         msg = Message(
+            context_type="group",
             group=group_id,
             sender=user_id,
             sender_type="user",
@@ -133,6 +139,7 @@ class MessageService:
         Message documents directly. Returns the persisted Message document.
         """
         msg = Message(
+            context_type="group",
             group=group_id,
             sender=None,
             sender_type="agent",
@@ -153,14 +160,14 @@ class MessageService:
     @staticmethod
     async def edit_message(message_id: str, user_id: str, body: EditMessageRequest) -> dict:
         """Edit a message. Author only, and the author must still be able to post."""
-        msg = await _get_message_or_404(message_id)
+        msg = await _get_group_message_or_404(message_id)
 
         if msg.sender != user_id:
             raise Forbidden("message.not_author", "Only the message author can edit it")
 
         # Defense-in-depth: if the author's role has been downgraded to view,
         # block edits even though they authored the message.
-        group = await _get_group_or_404(msg.group)
+        group = await _get_group_or_404(cast(str, msg.group))
         _require_can_post(group, user_id)
 
         msg.content = body.content
@@ -173,11 +180,11 @@ class MessageService:
     @staticmethod
     async def delete_message(message_id: str, user_id: str) -> None:
         """Soft-delete a message. Author or group owner can delete."""
-        msg = await _get_message_or_404(message_id)
+        msg = await _get_group_message_or_404(message_id)
 
         if msg.sender != user_id:
             # Check if user is the group owner
-            group = await _get_group_or_404(msg.group)
+            group = await _get_group_or_404(cast(str, msg.group))
             if group.owner != user_id:
                 raise Forbidden(
                     "message.not_authorized",
@@ -195,10 +202,10 @@ class MessageService:
         reaction. Otherwise, add it. If the emoji reaction has no users
         left, remove the entire reaction entry.
         """
-        msg = await _get_message_or_404(message_id)
+        msg = await _get_group_message_or_404(message_id)
 
         # View-only members cannot react
-        group = await _get_group_or_404(msg.group)
+        group = await _get_group_or_404(cast(str, msg.group))
         _require_can_post(group, user_id)
 
         # Find existing reaction for this emoji
@@ -241,7 +248,7 @@ class MessageService:
         if group.type in ("private", "dm"):
             _require_group_member(group, user_id)
 
-        query: dict = {"group": group_id, "deleted": False}
+        query: dict = {"context_type": "group", "group": group_id, "deleted": False}
 
         if cursor:
             parts = cursor.split("|", 1)
@@ -276,15 +283,15 @@ class MessageService:
     @staticmethod
     async def get_thread(message_id: str, user_id: str) -> list[dict]:
         """Get all replies to a message, sorted ascending by creation time."""
-        msg = await _get_message_or_404(message_id)
+        msg = await _get_group_message_or_404(message_id)
 
         # Verify user can access the group
-        group = await _get_group_or_404(msg.group)
+        group = await _get_group_or_404(cast(str, msg.group))
         if group.type in ("private", "dm"):
             _require_group_member(group, user_id)
 
         replies = (
-            await Message.find({"reply_to": str(msg.id), "deleted": False})
+            await Message.find({"context_type": "group", "reply_to": str(msg.id), "deleted": False})
             .sort([("createdAt", 1)])
             .to_list()
         )
@@ -297,7 +304,7 @@ class MessageService:
         _require_group_admin(group, user_id)
 
         # Verify message belongs to this group
-        msg = await _get_message_or_404(message_id)
+        msg = await _get_group_message_or_404(message_id)
         if msg.group != group_id:
             raise NotFound("message", message_id)
 
@@ -330,6 +337,7 @@ class MessageService:
         messages = (
             await Message.find(
                 {
+                    "context_type": "group",
                     "group": group_id,
                     "deleted": False,
                     "content": {"$regex": escaped, "$options": "i"},

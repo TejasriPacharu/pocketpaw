@@ -85,15 +85,32 @@ async def on_message_for_agents(data: dict) -> None:
 
 
 async def _should_agent_respond(group_agent: Any, content: str, mentions: list) -> bool:
-    """Determine if an agent should respond based on its respond_mode."""
+    """Determine if an agent should respond.
+
+    Precedence:
+    1. ``silent`` always opts out — even when explicitly mentioned.
+    2. If the message contains *any* agent-typed mention, only the mentioned
+       agents respond. Non-mentioned agents — even those on ``auto`` — stay
+       quiet so multiple auto agents don't all answer when the user is
+       clearly addressing one.
+    3. With no agent mentions, fall back to per-agent mode:
+       - ``auto`` → respond
+       - ``mention_only`` → don't respond
+       - ``smart`` → ask a cheap LLM whether this agent is relevant
+    """
     mode = group_agent.respond_mode
 
     if mode == "silent":
         return False
+
+    agent_mentions = [m for m in mentions if m.get("type") == "agent"]
+    if agent_mentions:
+        return any(m.get("id") == group_agent.agent for m in agent_mentions)
+
     if mode == "auto":
         return True
     if mode == "mention_only":
-        return any(m.get("type") == "agent" and m.get("id") == group_agent.agent for m in mentions)
+        return False
     if mode == "smart":
         return await _smart_relevance_check(group_agent.agent, content)
     return False
