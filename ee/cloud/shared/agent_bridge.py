@@ -234,24 +234,31 @@ async def _run_agent_response(
         )
     )
 
-    # Stream response
+    # Stream response — throttle chunk emits so WS bandwidth doesn't grow
+    # O(n²) with response length. stream_end delivers the authoritative final
+    # text, so a coalesced chunk is a lossless UX compromise.
     full_text = ""
+    last_emit_ts = 0.0
+    STREAM_CHUNK_THROTTLE_S = 0.2
     try:
         async for event in pool.run(
             agent_id, user_message, session_key, history, knowledge_context=knowledge_context
         ):
             if event.type == "message":
                 full_text += event.content
-                await emit(
-                    AgentStreamChunk(
-                        data={
-                            "group_id": group_id,
-                            "agent_id": agent_id,
-                            "message_id": temp_msg_id,
-                            "content": full_text,
-                        },
+                now = asyncio.get_event_loop().time()
+                if now - last_emit_ts >= STREAM_CHUNK_THROTTLE_S:
+                    last_emit_ts = now
+                    await emit(
+                        AgentStreamChunk(
+                            data={
+                                "group_id": group_id,
+                                "agent_id": agent_id,
+                                "message_id": temp_msg_id,
+                                "content": full_text,
+                            },
+                        )
                     )
-                )
             elif event.type == "tool_use":
                 # Notify clients which tool the agent is using
                 tool_name = ""

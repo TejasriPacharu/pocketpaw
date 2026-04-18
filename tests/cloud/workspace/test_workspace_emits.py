@@ -301,17 +301,7 @@ async def test_remove_member_emits_and_invalidates_cache():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_create_invite_emits_invite_created_without_token():
-    from ee.cloud.workspace.schemas import CreateInviteRequest
-    from ee.cloud.workspace.service import WorkspaceService
-
-    recorded, fake_emit = _capture_emits()
-    user = _make_user("u1")
-    ws = _make_workspace(seats=10)
-
-    constructed: list = []
-
+def _make_invite_stub(constructed: list) -> MagicMock:
     def fake_invite_ctor(*args, **kwargs):
         inv = SimpleNamespace(
             id="inv_new",
@@ -332,6 +322,21 @@ async def test_create_invite_emits_invite_created_without_token():
 
     invite_stub = MagicMock(side_effect=fake_invite_ctor)
     invite_stub.find_one = AsyncMock(return_value=None)
+    return invite_stub
+
+
+@pytest.mark.asyncio
+async def test_create_invite_emits_invite_created_without_token():
+    from ee.cloud.workspace.schemas import CreateInviteRequest
+    from ee.cloud.workspace.service import WorkspaceService
+
+    recorded, fake_emit = _capture_emits()
+    user = _make_user("u1")
+    ws = _make_workspace(seats=10)
+    invite_stub = _make_invite_stub([])
+    user_stub = MagicMock()
+    user_stub.email = MagicMock()
+    user_stub.find_one = AsyncMock(return_value=None)
 
     with (
         patch("ee.cloud.workspace.service.emit", new=fake_emit),
@@ -344,6 +349,7 @@ async def test_create_invite_emits_invite_created_without_token():
             new=AsyncMock(return_value=1),
         ),
         patch("ee.cloud.workspace.service.Invite", new=invite_stub),
+        patch("ee.cloud.workspace.service.User", new=user_stub),
         patch(
             "ee.cloud.workspace.service.PydanticObjectId",
             new=lambda x: x,
@@ -362,6 +368,59 @@ async def test_create_invite_emits_invite_created_without_token():
     assert data["invite_id"] == "inv_new"
     assert data["email"] == "invitee@example.com"
     # token MUST NOT leak into the event payload
+    assert "token" not in data
+    # Unknown invitee -> no user_id to route the event through the resolver's
+    # invitee branch.
+    assert "user_id" not in data
+
+
+@pytest.mark.asyncio
+async def test_create_invite_includes_user_id_when_invitee_is_known_user():
+    """When the invitee already has an account, emit user_id so the resolver
+    routes invite.created to them (not just workspace admins)."""
+    from ee.cloud.workspace.schemas import CreateInviteRequest
+    from ee.cloud.workspace.service import WorkspaceService
+
+    recorded, fake_emit = _capture_emits()
+    user = _make_user("u1")
+    ws = _make_workspace(seats=10)
+    existing_invitee = _make_user("u99", email="invitee@example.com")
+    invite_stub = _make_invite_stub([])
+    user_stub = MagicMock()
+    user_stub.email = MagicMock()
+    user_stub.find_one = AsyncMock(return_value=existing_invitee)
+
+    with (
+        patch("ee.cloud.workspace.service.emit", new=fake_emit),
+        patch(
+            "ee.cloud.workspace.service.Workspace.get",
+            new=AsyncMock(return_value=ws),
+        ),
+        patch(
+            "ee.cloud.workspace.service._count_members",
+            new=AsyncMock(return_value=1),
+        ),
+        patch("ee.cloud.workspace.service.Invite", new=invite_stub),
+        patch("ee.cloud.workspace.service.User", new=user_stub),
+        patch(
+            "ee.cloud.workspace.service.NotificationService.create",
+            new=AsyncMock(),
+        ),
+        patch(
+            "ee.cloud.workspace.service.PydanticObjectId",
+            new=lambda x: x,
+        ),
+    ):
+        await WorkspaceService.create_invite(
+            "w1",
+            user,
+            CreateInviteRequest(email="invitee@example.com", role="member"),
+        )
+
+    events = [e for e in recorded if isinstance(e, WorkspaceInviteCreated)]
+    assert len(events) == 1
+    data = events[0].data
+    assert data["user_id"] == "u99"
     assert "token" not in data
 
 

@@ -154,3 +154,118 @@ async def test_room_join_allows_member(monkeypatch):
     )
 
     join_spy.assert_called_once_with(ws, "g1")
+
+
+# ---------------------------------------------------------------------------
+# Typing / read-ack membership enforcement
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_typing_rejects_non_member(monkeypatch):
+    """A non-member cannot spoof typing indicators into a group."""
+    import importlib
+    from unittest.mock import AsyncMock as _AsyncMock
+    from unittest.mock import MagicMock
+
+    from ee.cloud.chat.schemas import WsInbound
+
+    router_mod = importlib.import_module("ee.cloud.chat.router")
+
+    async def members(_gid: str) -> list[str]:
+        return ["u1", "u2"]
+
+    send_spy = _AsyncMock()
+    start_typing_spy = MagicMock()
+    monkeypatch.setattr(router_mod.GroupService, "list_member_ids", members)
+    monkeypatch.setattr(router_mod.manager, "send_to_room", send_spy)
+    monkeypatch.setattr(router_mod.manager, "start_typing", start_typing_spy)
+
+    await router_mod._ws_typing(
+        user_id="intruder",
+        msg=WsInbound(type="typing.start", group_id="g1"),
+        active=True,
+    )
+
+    send_spy.assert_not_called()
+    start_typing_spy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_typing_allows_member(monkeypatch):
+    """A real member's typing event is broadcast to the room."""
+    import importlib
+    from unittest.mock import AsyncMock as _AsyncMock
+    from unittest.mock import MagicMock
+
+    from ee.cloud.chat.schemas import WsInbound
+
+    router_mod = importlib.import_module("ee.cloud.chat.router")
+
+    async def members(_gid: str) -> list[str]:
+        return ["u1", "u2"]
+
+    send_spy = _AsyncMock()
+    start_typing_spy = MagicMock()
+    monkeypatch.setattr(router_mod.GroupService, "list_member_ids", members)
+    monkeypatch.setattr(router_mod.manager, "send_to_room", send_spy)
+    monkeypatch.setattr(router_mod.manager, "start_typing", start_typing_spy)
+
+    await router_mod._ws_typing(
+        user_id="u1",
+        msg=WsInbound(type="typing.start", group_id="g1"),
+        active=True,
+    )
+
+    start_typing_spy.assert_called_once_with("g1", "u1")
+    send_spy.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_read_ack_rejects_non_member(monkeypatch):
+    """A non-member cannot spoof a read receipt for a group they aren't in."""
+    import importlib
+    from unittest.mock import AsyncMock as _AsyncMock
+
+    from ee.cloud.chat.schemas import WsInbound
+
+    router_mod = importlib.import_module("ee.cloud.chat.router")
+
+    async def members(_gid: str) -> list[str]:
+        return ["u1", "u2"]
+
+    send_spy = _AsyncMock()
+    monkeypatch.setattr(router_mod.GroupService, "list_member_ids", members)
+    monkeypatch.setattr(router_mod.manager, "send_to_room", send_spy)
+
+    await router_mod._ws_read_ack(
+        user_id="intruder",
+        msg=WsInbound(type="read.ack", group_id="g1", message_id="m1"),
+    )
+
+    send_spy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_read_ack_allows_member(monkeypatch):
+    """A real member's read receipt is broadcast to the room."""
+    import importlib
+    from unittest.mock import AsyncMock as _AsyncMock
+
+    from ee.cloud.chat.schemas import WsInbound
+
+    router_mod = importlib.import_module("ee.cloud.chat.router")
+
+    async def members(_gid: str) -> list[str]:
+        return ["u1", "u2"]
+
+    send_spy = _AsyncMock()
+    monkeypatch.setattr(router_mod.GroupService, "list_member_ids", members)
+    monkeypatch.setattr(router_mod.manager, "send_to_room", send_spy)
+
+    await router_mod._ws_read_ack(
+        user_id="u1",
+        msg=WsInbound(type="read.ack", group_id="g1", message_id="m1"),
+    )
+
+    send_spy.assert_awaited_once()

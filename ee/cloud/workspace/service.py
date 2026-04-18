@@ -344,20 +344,24 @@ class WorkspaceService:
         )
         await invite.insert()
 
+        # Resolve invitee-as-existing-user before emitting so the audience
+        # resolver can route the event to them (via user_id branch) in addition
+        # to workspace admins.
+        invited_user = await User.find_one(User.email == body.email)
+
+        event_data: dict = {
+            "workspace_id": workspace_id,
+            "invite_id": str(invite.id),
+            "email": body.email,
+        }
+        if invited_user:
+            event_data["user_id"] = str(invited_user.id)
+
         # Emit invite.created (token deliberately omitted from payload).
-        await emit(
-            WorkspaceInviteCreated(
-                data={
-                    "workspace_id": workspace_id,
-                    "invite_id": str(invite.id),
-                    "email": body.email,
-                }
-            )
-        )
+        await emit(WorkspaceInviteCreated(data=event_data))
 
         # If the invited email matches an existing user, create an in-app
         # notification so their bell icon lights up immediately.
-        invited_user = await User.find_one(User.email == body.email)
         if invited_user:
             await NotificationService.create(
                 workspace_id=workspace_id,

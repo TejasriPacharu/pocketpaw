@@ -27,7 +27,7 @@ from ee.cloud.chat.schemas import (
 )
 from ee.cloud.chat.service import GroupService, MessageService
 from ee.cloud.chat.ws import manager
-from ee.cloud.license import require_license
+from ee.cloud.license import get_license, require_license
 from ee.cloud.shared.deps import (
     current_user_id,
     current_workspace_id,
@@ -373,6 +373,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
     """Cloud WebSocket -- authenticate via JWT token, then handle typed JSON messages."""
     import jwt as pyjwt
 
+    # Gate realtime behind the enterprise license (parity with REST /chat routes).
+    lic = get_license()
+    if lic is None or lic.expired:
+        await websocket.close(code=4003, reason="Enterprise license required")
+        return
+
     secret = os.environ.get("AUTH_SECRET", "change-me-in-production-please")
     try:
         payload = pyjwt.decode(token, secret, algorithms=["HS256"], audience=["fastapi-users:auth"])
@@ -488,6 +494,10 @@ async def _ws_typing(user_id: str, msg: WsInbound, *, active: bool) -> None:
     if not msg.group_id:
         return
 
+    members = await GroupService.list_member_ids(msg.group_id)
+    if user_id not in members:
+        return
+
     if active:
         manager.start_typing(msg.group_id, user_id)
     else:
@@ -509,6 +519,10 @@ async def _ws_typing(user_id: str, msg: WsInbound, *, active: bool) -> None:
 
 async def _ws_read_ack(user_id: str, msg: WsInbound) -> None:
     if not msg.group_id or not msg.message_id:
+        return
+
+    members = await GroupService.list_member_ids(msg.group_id)
+    if user_id not in members:
         return
 
     await manager.send_to_room(
