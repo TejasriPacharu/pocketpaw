@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -261,7 +262,11 @@ async def _materialize_remote(adapter: StorageAdapter, rec: FileRecord) -> Path 
     if target.exists():
         return target
 
-    tmp = target.with_suffix(target.suffix + ".part")
+    # Unique .part suffix so two concurrent calls for the same file_id don't
+    # race each other into the same tmp path (POSIX silently interleaves,
+    # Windows blocks the second open). The first one to os.replace wins and
+    # the loser is cleaned up in the except branch.
+    tmp = target.with_suffix(f"{target.suffix}.{uuid.uuid4().hex}.part")
     try:
         async with aiofiles.open(tmp, "wb") as fh:
             async for chunk in adapter.open(rec.storage_key):

@@ -74,15 +74,24 @@ async def grant(
     workspace: str = Depends(current_workspace_id),
     user_id: str = Depends(current_user_id),
 ) -> dict:
-    """Mint a short-lived signed URL for ``file_id``.
+    """Mint a short-lived download URL for ``file_id``.
 
     Returns the storage adapter's presigned URL when available (S3 and
-    friends), otherwise an HMAC-signed proxy URL through this service.
+    friends). Otherwise returns the authenticated cloud download URL —
+    the paw-enterprise browser attaches ``paw_auth`` cookies via
+    ``withCredentials`` so ``<img src>`` / ``<a href download>`` work
+    directly without a Bearer header.
+
+    HMAC-signed ``?t=`` grants are intentionally NOT used here: the EE
+    download route at ``GET /uploads/{id}`` requires ``current_active_user``
+    (JWT), and the OSS dashboard auth middleware verifies HMAC with its
+    own master token, not EE's ``SECRET``. Embedding these URLs in
+    cookie-less contexts (mobile webviews, cross-origin embeds) requires
+    S3 presigning — use that adapter for production.
     """
     import time
 
-    from ee.cloud.auth import SECRET
-    from pocketpaw.uploads.signing import DEFAULT_TTL_SECONDS, sign_grant
+    from pocketpaw.uploads.signing import DEFAULT_TTL_SECONDS
 
     try:
         _rec, presigned = await _SVC.presigned_get(
@@ -97,10 +106,9 @@ async def grant(
             "expires_at": int(time.time()) + DEFAULT_TTL_SECONDS,
         }
 
-    token, expires_at = sign_grant(file_id, SECRET)
     return {
-        "url": f"/api/v1/uploads/{file_id}?t={token}",
-        "expires_at": expires_at,
+        "url": f"/api/v1/uploads/{file_id}",
+        "expires_at": int(time.time()) + DEFAULT_TTL_SECONDS,
     }
 
 

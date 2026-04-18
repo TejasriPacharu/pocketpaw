@@ -394,10 +394,11 @@ class MongoMemoryStore:
 
 
 # Window for treating an existing Message as a duplicate of the current
-# write. Sized to comfortably cover the save_user_message → memory.add_to_session
-# race (same request, same event loop) while still letting an actual user
-# resend of the identical text through.
-_DEDUP_WINDOW_SECONDS = 30
+# write. The dual-write race (chat endpoint + agent loop both saving) is
+# synchronous in the same request, so 5s is plenty — and short enough that a
+# real user sending back-to-back "ok" messages doesn't see one silently
+# swallowed.
+_DEDUP_WINDOW_SECONDS = 5
 
 
 async def _find_recent_twin(
@@ -407,10 +408,12 @@ async def _find_recent_twin(
 ) -> Message | None:
     """Return an existing Message row with the same content written recently.
 
-    Guards against the dual-write case where the chat endpoint persists the
-    message once (with attachments) and the agent loop then calls us with
-    the same content for agent-context memory. The first writer wins —
-    attachments and ordering on the canonical record are preserved.
+    Covers the synchronous in-request race where the chat endpoint persists
+    the message once (with attachments) and the agent loop's
+    ``memory.add_to_session`` then calls us with the same content for
+    agent-context memory. The first writer wins — attachments and ordering
+    on the canonical record are preserved. Legitimate back-to-back resends
+    of the same short text (``"ok"``) fall outside the 5s window.
     """
     from datetime import timedelta
 
