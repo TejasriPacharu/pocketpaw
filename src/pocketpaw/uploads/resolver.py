@@ -11,11 +11,16 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+import aiofiles
+import aiofiles.os
+
 from pocketpaw.uploads.adapter import StorageAdapter
+from pocketpaw.uploads.config import extension_for
 from pocketpaw.uploads.file_store import FileRecord, JSONLFileStore
 
 
@@ -185,6 +190,10 @@ async def resolve_media_with_records(media: list[str]) -> list[ResolvedMedia]:
     - Non-upload string (already a path / opaque token) → ``ResolvedMedia(str, None)``
     - Upload URL that resolves nowhere → dropped with a warning log
 
+    When the storage adapter doesn't expose a local path (S3 et al.), the
+    blob is streamed to a local cache file so the agent loop gets a real
+    path to read from. Repeat lookups for the same file hit the cache.
+
     Callers that only want the paths can use :func:`resolve_media_paths_any`.
     """
     resolver = default_resolver()
@@ -195,19 +204,86 @@ async def resolve_media_with_records(media: list[str]) -> list[ResolvedMedia]:
             out.append(ResolvedMedia(path=entry, record=None))
             continue
 
-        # Try OSS first.
-        path = resolver.resolve(entry)
-        rec: FileRecord | None = None
-        if path is not None:
-            rec = resolver._meta.get(fid)
-        else:
-            path, rec = await _resolve_via_ee_mongo(fid)
+        # Locate the metadata record — OSS JSONL first, then EE Mongo.
+        rec = resolver._meta.get(fid)
+        adapter: StorageAdapter = resolver._adapter
+        if rec is None:
+            ee_path, ee_rec = await _resolve_via_ee_mongo(fid)
+            if ee_rec is not None:
+                rec = ee_rec
+                from ee.cloud.uploads.router import _ADAPTER as EE_ADAPTER
 
-        if path is None:
+                adapter = EE_ADAPTER
+                # EE's LocalStorageAdapter may have given us a local path already.
+                if ee_path is not None:
+                    out.append(ResolvedMedia(path=str(ee_path), record=rec))
+                    continue
+
+        if rec is None:
             logger.warning("dropping unresolvable upload entry: %s", entry)
             continue
-        out.append(ResolvedMedia(path=str(path), record=rec))
+
+        # Prefer a native local path (LocalStorageAdapter). Otherwise stream
+        # the remote blob to the local cache so the agent loop can read it.
+        try:
+            local = adapter.local_path(rec.storage_key)
+        except Exception:
+            logger.exception("adapter.local_path failed for file_id=%s", fid)
+            local = None
+
+        if local is None:
+            local = await _materialize_remote(adapter, rec)
+
+        if local is None:
+            logger.warning("dropping unresolvable upload entry: %s", entry)
+            continue
+        out.append(ResolvedMedia(path=str(local), record=rec))
     return out
+
+
+_REMOTE_CACHE_DIR = Path.home() / ".pocketpaw" / "uploads" / "_remote_cache"
+
+
+async def _materialize_remote(adapter: StorageAdapter, rec: FileRecord) -> Path | None:
+    """Stream a remote blob into the local cache and return its path.
+
+    The cache is keyed by ``file_id`` so repeat calls reuse the download.
+    Agents can pass the returned path to Read / image tools without caring
+    that the original bytes live in S3.
+    """
+    try:
+        await aiofiles.os.makedirs(str(_REMOTE_CACHE_DIR), exist_ok=True)
+    except Exception:
+        logger.exception("failed to create remote upload cache dir")
+        return None
+
+    ext = extension_for(rec.mime)
+    target = _REMOTE_CACHE_DIR / f"{rec.id}{ext}"
+    if target.exists():
+        return target
+
+    # Unique .part suffix so two concurrent calls for the same file_id don't
+    # race each other into the same tmp path (POSIX silently interleaves,
+    # Windows blocks the second open). The first one to os.replace wins and
+    # the loser is cleaned up in the except branch.
+    tmp = target.with_suffix(f"{target.suffix}.{uuid.uuid4().hex}.part")
+    try:
+        async with aiofiles.open(tmp, "wb") as fh:
+            async for chunk in adapter.open(rec.storage_key):
+                await fh.write(chunk)
+        await aiofiles.os.replace(str(tmp), str(target))
+    except Exception:
+        logger.exception(
+            "failed to materialize remote blob file_id=%s storage_key=%s",
+            rec.id,
+            rec.storage_key,
+        )
+        try:
+            await aiofiles.os.remove(str(tmp))
+        except FileNotFoundError:
+            pass
+        return None
+    return target
 
 
 # Keep JSONLFileStore importable for type-friendly call sites.

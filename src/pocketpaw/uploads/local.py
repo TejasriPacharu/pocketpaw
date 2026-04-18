@@ -80,3 +80,8 @@ class LocalStorageAdapter(StorageAdapter):
         except AccessDenied:
             return None
         return target if target.exists() else None
+
+    async def presigned_get(self, key: str, ttl_seconds: int) -> str | None:
+        # Local disk can't mint a public URL. Callers fall back to the
+        # HMAC-signed ``/uploads/{id}?t=...`` proxy.
+        return None

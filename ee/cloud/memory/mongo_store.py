@@ -29,7 +29,7 @@ from beanie import PydanticObjectId
 from bson.errors import InvalidId
 
 from ee.cloud.memory.documents import MemoryFactDoc
-from ee.cloud.models.message import Message
+from ee.cloud.models.message import Attachment, Message
 from ee.cloud.models.session import Session
 from pocketpaw.memory.protocol import MemoryEntry, MemoryType  # type: ignore[import-untyped]
 
@@ -137,6 +137,30 @@ class MongoMemoryStore:
             # (instead of `role`) would render every message as the user.
             sender_type = "agent" if role == "assistant" else "user"
             normalized_key = _normalize_session_key(entry.session_key)
+
+            # Dedup against a same-turn re-write. The main duplicate source
+            # (chat_persistence writing in parallel) is gone — we now own
+            # the single write path — but keep this guard so agent-loop
+            # retries of identical content don't land twice.
+            existing = await _find_recent_twin(normalized_key, role, entry.content)
+            if existing is not None:
+                return str(existing.id)
+
+            # Attachments ride on the InboundMessage metadata from
+            # /chat/stream so we can persist them on the same Message row
+            # instead of double-writing. Malformed entries are skipped but
+            # don't abort the save — the text content still gets through.
+            attachment_docs: list[Attachment] = []
+            raw_attachments = (entry.metadata or {}).get("attachments") or []
+            if isinstance(raw_attachments, list):
+                for a in raw_attachments:
+                    if not isinstance(a, dict):
+                        continue
+                    try:
+                        attachment_docs.append(Attachment(**a))
+                    except Exception:
+                        logger.warning("skipping malformed attachment on pocket message: %r", a)
+
             workspace_id = await _resolve_session_workspace(normalized_key, entry)
             msg = Message(
                 context_type="pocket",
@@ -145,6 +169,7 @@ class MongoMemoryStore:
                 sender_type=sender_type,
                 content=entry.content,
                 workspace_id=workspace_id,
+                attachments=attachment_docs,
             )
             await msg.insert()
             return str(msg.id)
@@ -366,6 +391,46 @@ class MongoMemoryStore:
             filters["user_id"] = user_id
         facts = await MemoryFactDoc.find(filters).sort("-createdAt").limit(limit).to_list()
         return [_fact_to_entry(f) for f in facts]
+
+
+# Window for treating an existing Message as a duplicate of the current
+# write. The dual-write race (chat endpoint + agent loop both saving) is
+# synchronous in the same request, so 5s is plenty — and short enough that a
+# real user sending back-to-back "ok" messages doesn't see one silently
+# swallowed.
+_DEDUP_WINDOW_SECONDS = 5
+
+
+async def _find_recent_twin(
+    session_key: str,
+    role: str,
+    content: str,
+) -> Message | None:
+    """Return an existing Message row with the same content written recently.
+
+    Covers the synchronous in-request race where the chat endpoint persists
+    the message once (with attachments) and the agent loop's
+    ``memory.add_to_session`` then calls us with the same content for
+    agent-context memory. The first writer wins — attachments and ordering
+    on the canonical record are preserved. Legitimate back-to-back resends
+    of the same short text (``"ok"``) fall outside the 5s window.
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now(UTC) - timedelta(seconds=_DEDUP_WINDOW_SECONDS)
+    try:
+        return await Message.find_one(
+            {
+                "context_type": "pocket",
+                "session_key": session_key,
+                "role": role,
+                "content": content,
+                "createdAt": {"$gte": cutoff},
+            }
+        )
+    except Exception:
+        logger.exception("memory dedup lookup failed for session=%s", session_key)
+        return None
 
 
 async def _resolve_session_workspace(session_key: str, entry: MemoryEntry) -> str | None:

@@ -91,6 +91,21 @@ class EEUploadService:
             raise NotFound()
         return rec, self._adapter.open(rec.storage_key)
 
+    async def presigned_get(
+        self,
+        file_id: str,
+        requester_id: str,
+        workspace: str,
+        ttl_seconds: int,
+    ) -> tuple[FileRecord, str | None]:
+        rec = await self._meta.get_scoped(file_id, workspace=workspace)
+        if rec is None:
+            raise NotFound()
+        if rec.owner_id != requester_id:
+            raise NotFound()
+        url = await self._adapter.presigned_get(rec.storage_key, ttl_seconds)
+        return rec, url
+
     async def delete(
         self,
         file_id: str,
