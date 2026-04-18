@@ -20,8 +20,13 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from ee.cloud.chat.schemas import WsOutbound
-from ee.cloud.chat.ws import manager as ws_manager
+from ee.cloud.realtime.emit import emit
+from ee.cloud.realtime.events import (
+    AgentStreamChunk,
+    AgentStreamEnd,
+    AgentStreamStart,
+    AgentToolUse,
+)
 from ee.cloud.shared.events import event_bus
 
 logger = logging.getLogger(__name__)
@@ -218,41 +223,42 @@ async def _run_agent_response(
 
     # Notify: agent starts generating
     temp_msg_id = f"agent-stream-{agent_id}-{int(datetime.now(UTC).timestamp() * 1000)}"
-    await ws_manager.broadcast_to_group(
-        group_id,
-        group_members,
-        WsOutbound(
-            type="agent.stream_start",
+    await emit(
+        AgentStreamStart(
             data={
                 "group_id": group_id,
                 "agent_id": agent_id,
                 "agent_name": instance.agent_name,
                 "message_id": temp_msg_id,
             },
-        ),
+        )
     )
 
-    # Stream response
+    # Stream response — throttle chunk emits so WS bandwidth doesn't grow
+    # O(n²) with response length. stream_end delivers the authoritative final
+    # text, so a coalesced chunk is a lossless UX compromise.
     full_text = ""
+    last_emit_ts = 0.0
+    STREAM_CHUNK_THROTTLE_S = 0.2
     try:
         async for event in pool.run(
             agent_id, user_message, session_key, history, knowledge_context=knowledge_context
         ):
             if event.type == "message":
                 full_text += event.content
-                await ws_manager.broadcast_to_group(
-                    group_id,
-                    group_members,
-                    WsOutbound(
-                        type="agent.stream_chunk",
-                        data={
-                            "group_id": group_id,
-                            "agent_id": agent_id,
-                            "message_id": temp_msg_id,
-                            "content": full_text,
-                        },
-                    ),
-                )
+                now = asyncio.get_event_loop().time()
+                if now - last_emit_ts >= STREAM_CHUNK_THROTTLE_S:
+                    last_emit_ts = now
+                    await emit(
+                        AgentStreamChunk(
+                            data={
+                                "group_id": group_id,
+                                "agent_id": agent_id,
+                                "message_id": temp_msg_id,
+                                "content": full_text,
+                            },
+                        )
+                    )
             elif event.type == "tool_use":
                 # Notify clients which tool the agent is using
                 tool_name = ""
@@ -260,32 +266,26 @@ async def _run_agent_response(
                     tool_name = event.content.get("tool") or event.content.get("name") or ""
                 elif isinstance(event.content, str):
                     tool_name = event.content
-                await ws_manager.broadcast_to_group(
-                    group_id,
-                    group_members,
-                    WsOutbound(
-                        type="agent.tool_use",
+                await emit(
+                    AgentToolUse(
                         data={
                             "group_id": group_id,
                             "agent_id": agent_id,
                             "agent_name": instance.agent_name,
                             "tool": tool_name,
                         },
-                    ),
+                    )
                 )
             elif event.type == "thinking":
-                await ws_manager.broadcast_to_group(
-                    group_id,
-                    group_members,
-                    WsOutbound(
-                        type="agent.tool_use",
+                await emit(
+                    AgentToolUse(
                         data={
                             "group_id": group_id,
                             "agent_id": agent_id,
                             "agent_name": instance.agent_name,
                             "tool": "thinking",
                         },
-                    ),
+                    )
                 )
             elif event.type == "done":
                 break
@@ -337,11 +337,8 @@ async def _run_agent_response(
     await msg.insert()
 
     # Broadcast final message
-    await ws_manager.broadcast_to_group(
-        group_id,
-        group_members,
-        WsOutbound(
-            type="agent.stream_end",
+    await emit(
+        AgentStreamEnd(
             data={
                 "group_id": group_id,
                 "agent_id": agent_id,
@@ -351,7 +348,7 @@ async def _run_agent_response(
                 "pocket_id": pocket_id,
                 "agent_name": instance.agent_name,
             },
-        ),
+        )
     )
 
     # Observe with soul

@@ -14,6 +14,38 @@ from fastapi.responses import JSONResponse
 from ee.cloud.shared.errors import CloudError
 
 
+def init_realtime() -> None:
+    """Initialise the realtime EventBus. Idempotent."""
+    import logging
+    import os
+
+    from ee.cloud.chat.group_service import GroupService
+    from ee.cloud.chat.ws import manager as _conn_manager
+    from ee.cloud.realtime.audience import AudienceResolver
+    from ee.cloud.realtime.bus import InProcessBus, set_bus, set_resolver
+    from ee.cloud.workspace.service import WorkspaceService
+
+    logger = logging.getLogger(__name__)
+
+    resolver = AudienceResolver(
+        group_members=GroupService.list_member_ids,
+        workspace_members=WorkspaceService.list_member_ids,
+        workspace_admins=WorkspaceService.list_admin_ids,
+        workspace_peers=WorkspaceService.list_peer_ids,
+    )
+
+    mode = os.environ.get("POCKETPAW_REALTIME_BUS", "inprocess").lower()
+    if mode not in {"inprocess", ""}:
+        logger.warning(
+            "POCKETPAW_REALTIME_BUS=%s is not yet supported (RedisBus lands in Task 33);"
+            " falling back to InProcessBus",
+            mode,
+        )
+
+    set_bus(InProcessBus(resolver=resolver, conn_manager=_conn_manager))
+    set_resolver(resolver)
+
+
 def mount_cloud(app: FastAPI) -> None:
     """Mount all cloud domain routers and the error handler."""
 
@@ -39,10 +71,12 @@ def mount_cloud(app: FastAPI) -> None:
     app.include_router(sessions_router, prefix="/api/v1")
 
     from ee.cloud.kb.router import router as kb_router
+    from ee.cloud.notifications.router import router as notifications_router
     from ee.cloud.uploads.router import router as uploads_router
 
     app.include_router(kb_router, prefix="/api/v1")
     app.include_router(uploads_router, prefix="/api/v1")
+    app.include_router(notifications_router, prefix="/api/v1")
 
     # User search endpoint — used by group settings, pocket sharing
     from ee.cloud.models.user import User as UserModel
@@ -105,13 +139,20 @@ def mount_cloud(app: FastAPI) -> None:
 
     register_agent_bridge()
 
-    # Start/stop agent pool with app lifecycle + chat persistence
+    # Start/stop agent pool with app lifecycle.
+    #
+    # Previously also called ``register_chat_persistence()`` to subscribe to
+    # outbound messages on Channel.WEBSOCKET and persist them to Mongo.
+    # That bridge dual-wrote every user + agent message — MongoMemoryStore
+    # already persists SESSION entries through the agent loop, so keeping
+    # the subscription turned every single chat turn into two rows (one
+    # with attachments, one without). The canonical write path is now
+    # ``MongoMemoryStore.save`` which receives attachments through
+    # InboundMessage.metadata.
     @app.on_event("startup")
     async def _start_agent_pool():
-        # Register chat persistence bridge (saves runtime WS messages to MongoDB)
-        from ee.cloud.shared.chat_persistence import register_chat_persistence
+        init_realtime()
 
-        register_chat_persistence()
         from pocketpaw.agents.pool import get_agent_pool
 
         await get_agent_pool().start()

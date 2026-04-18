@@ -24,6 +24,16 @@ from ee.cloud.chat.schemas import (
     SendMessageRequest,
 )
 from ee.cloud.models.message import Attachment, Mention, Message, Reaction
+from ee.cloud.models.notification import NotificationSource
+from ee.cloud.notifications.service import NotificationService
+from ee.cloud.realtime.emit import emit
+from ee.cloud.realtime.events import (
+    MessageDeleted,
+    MessageEdited,
+    MessageNew,
+    MessageReaction,
+    MessageSent,
+)
 from ee.cloud.shared.errors import Forbidden, NotFound
 from ee.cloud.shared.events import event_bus
 
@@ -124,6 +134,37 @@ class MessageService:
             },
         )
 
+        # Realtime fan-out: message.new to the group (sender excluded via
+        # AudienceResolver reading data["sender"]), message.sent ack to the
+        # sender only (keyed by data["sender_id"]).
+        await emit(MessageNew(data={**response, "group_id": group_id}))
+        await emit(MessageSent(data={**response, "group_id": group_id, "sender_id": user_id}))
+
+        # Derive mention notifications. Each @user mention in the payload
+        # creates a Notification row and emits notification.new (except for
+        # self-mentions).
+        group_name = getattr(group, "name", "") or ""
+        for mention in body.mentions or []:
+            if not isinstance(mention, dict) or mention.get("type") != "user":
+                continue
+            target = mention.get("id")
+            if not target or target == user_id:
+                continue
+            await NotificationService.create(
+                workspace_id=str(group.workspace),
+                recipient=target,
+                kind="mention",
+                title=f"You were mentioned in #{group_name}"
+                if group_name
+                else "You were mentioned",
+                body=body.content[:200],
+                source=NotificationSource(
+                    type="message",
+                    id=str(msg.id),
+                    pocket_id=None,
+                ),
+            )
+
         return response
 
     @staticmethod
@@ -175,6 +216,17 @@ class MessageService:
         msg.edited_at = datetime.now(UTC)
         await msg.save()
 
+        await emit(
+            MessageEdited(
+                data={
+                    "message_id": str(msg.id),
+                    "group_id": cast(str, msg.group),
+                    "content": msg.content,
+                    "edited_at": str(msg.edited_at),
+                }
+            )
+        )
+
         return _message_response(msg)
 
     @staticmethod
@@ -193,6 +245,15 @@ class MessageService:
 
         msg.deleted = True
         await msg.save()
+
+        await emit(
+            MessageDeleted(
+                data={
+                    "message_id": str(msg.id),
+                    "group_id": cast(str, msg.group),
+                }
+            )
+        )
 
     @staticmethod
     async def toggle_reaction(message_id: str, user_id: str, emoji: str) -> dict:
@@ -215,6 +276,7 @@ class MessageService:
                 existing = r
                 break
 
+        added = True
         if existing is not None:
             if user_id in existing.users:
                 # Remove user from this reaction
@@ -222,12 +284,37 @@ class MessageService:
                 # Remove the reaction entry entirely if no users left
                 if not existing.users:
                     msg.reactions.remove(existing)
+                added = False
             else:
                 existing.users.append(user_id)
         else:
             msg.reactions.append(Reaction(emoji=emoji, users=[user_id]))
 
         await msg.save()
+
+        await emit(
+            MessageReaction(
+                data={
+                    "message_id": str(msg.id),
+                    "group_id": cast(str, msg.group),
+                    "emoji": emoji,
+                    "user_id": user_id,
+                }
+            )
+        )
+
+        # Derive reaction notification: only on ADD, and only if the reactor
+        # is not the original sender of the message.
+        if added and msg.sender and msg.sender != user_id:
+            await NotificationService.create(
+                workspace_id=str(group.workspace),
+                recipient=msg.sender,
+                kind="reaction",
+                title=f"{emoji} on your message",
+                body=(msg.content or "")[:200],
+                source=NotificationSource(type="message", id=str(msg.id)),
+            )
+
         return _message_response(msg)
 
     @staticmethod

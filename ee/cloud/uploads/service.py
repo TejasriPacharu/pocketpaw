@@ -6,6 +6,8 @@ from collections.abc import AsyncIterator
 
 from fastapi import UploadFile
 
+from ee.cloud.realtime.emit import emit
+from ee.cloud.realtime.events import FileDeleted, FileReady
 from ee.cloud.uploads.mongo_store import MongoFileStore
 from pocketpaw.uploads.adapter import StorageAdapter
 from pocketpaw.uploads.config import UploadSettings
@@ -75,6 +77,21 @@ class EEUploadService:
         # Persist each successful record in Mongo with workspace scoping
         for rec in result.uploaded:
             await self._meta.save_scoped(rec, workspace=workspace)
+            # Only chat-scoped uploads are realtime-broadcastable; avatars
+            # and knowledge uploads aren't rendered in chat timelines.
+            if rec.chat_id:
+                await emit(
+                    FileReady(
+                        data={
+                            "group_id": rec.chat_id,
+                            "file_id": rec.id,
+                            "filename": rec.filename,
+                            "mime": rec.mime,
+                            "size": rec.size,
+                            "url": f"/api/v1/uploads/{rec.id}",
+                        }
+                    )
+                )
         return result
 
     async def stream(
@@ -122,3 +139,12 @@ class EEUploadService:
         # future cleanup job) rather than silently surviving visibility.
         await self._meta.soft_delete_scoped(file_id, workspace=workspace)
         await self._adapter.delete(rec.storage_key)
+        if rec.chat_id:
+            await emit(
+                FileDeleted(
+                    data={
+                        "group_id": rec.chat_id,
+                        "file_id": rec.id,
+                    }
+                )
+            )

@@ -27,7 +27,7 @@ from ee.cloud.chat.schemas import (
 )
 from ee.cloud.chat.service import GroupService, MessageService
 from ee.cloud.chat.ws import manager
-from ee.cloud.license import require_license
+from ee.cloud.license import get_license, require_license
 from ee.cloud.shared.deps import (
     current_user_id,
     current_workspace_id,
@@ -373,6 +373,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
     """Cloud WebSocket -- authenticate via JWT token, then handle typed JSON messages."""
     import jwt as pyjwt
 
+    # Gate realtime behind the enterprise license (parity with REST /chat routes).
+    lic = get_license()
+    if lic is None or lic.expired:
+        await websocket.close(code=4003, reason="Enterprise license required")
+        return
+
     secret = os.environ.get("AUTH_SECRET", "change-me-in-production-please")
     try:
         payload = pyjwt.decode(token, secret, algorithms=["HS256"], audience=["fastapi-users:auth"])
@@ -403,7 +409,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                 )
                 continue
 
-            await _handle_ws_message(user_id, msg)
+            await _handle_ws_message(websocket, user_id, msg)
 
     except WebSocketDisconnect:
         pass
@@ -421,7 +427,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
 # ---------------------------------------------------------------------------
 
 
-async def _handle_ws_message(user_id: str, msg: WsInbound) -> None:
+async def _handle_ws_message(websocket: WebSocket, user_id: str, msg: WsInbound) -> None:
     """Dispatch validated WebSocket message to the appropriate handler."""
     if msg.type == "message.send":
         await _ws_message_send(user_id, msg)
@@ -439,6 +445,13 @@ async def _handle_ws_message(user_id: str, msg: WsInbound) -> None:
         pass  # Will be wired in Task 19
     elif msg.type == "read.ack":
         await _ws_read_ack(user_id, msg)
+    elif msg.type == "room.join":
+        if msg.group_id:
+            members = await GroupService.list_member_ids(msg.group_id)
+            if user_id in members:
+                manager.join_room(websocket, msg.group_id)
+    elif msg.type == "room.leave":
+        manager.leave_room(websocket)
 
 
 async def _ws_message_send(user_id: str, msg: WsInbound) -> None:
@@ -451,25 +464,7 @@ async def _ws_message_send(user_id: str, msg: WsInbound) -> None:
         mentions=msg.mentions,
         attachments=msg.attachments,
     )
-    result = await MessageService.send_message(msg.group_id, user_id, body)
-
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-
-    group = await Group.get(PydanticObjectId(msg.group_id))
-    if group:
-        result_data = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-        await manager.broadcast_to_group(
-            msg.group_id,
-            group.members,
-            WsOutbound(type="message.new", data=result_data),
-            exclude_user=user_id,
-        )
-        await manager.send_to_user(
-            user_id,
-            WsOutbound(type="message.sent", data=result_data),
-        )
+    await MessageService.send_message(msg.group_id, user_id, body)
 
 
 async def _ws_message_edit(user_id: str, msg: WsInbound) -> None:
@@ -480,51 +475,12 @@ async def _ws_message_edit(user_id: str, msg: WsInbound) -> None:
         msg.message_id, user_id, EditMessageRequest(content=msg.content)
     )
 
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-    from ee.cloud.models.message import Message
-
-    message = await Message.get(PydanticObjectId(msg.message_id))
-    if message:
-        group = await Group.get(PydanticObjectId(message.group))
-        if group:
-            await manager.broadcast_to_group(
-                message.group,
-                group.members,
-                WsOutbound(
-                    type="message.edited",
-                    data={
-                        "message_id": msg.message_id,
-                        "content": msg.content,
-                        "edited_at": str(message.edited_at),
-                    },
-                ),
-            )
-
 
 async def _ws_message_delete(user_id: str, msg: WsInbound) -> None:
     if not msg.message_id:
         return
 
-    # Fetch message before deleting so we know which group to broadcast to
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-    from ee.cloud.models.message import Message
-
-    message = await Message.get(PydanticObjectId(msg.message_id))
-
     await MessageService.delete_message(msg.message_id, user_id)
-
-    if message:
-        group = await Group.get(PydanticObjectId(message.group))
-        if group:
-            await manager.broadcast_to_group(
-                message.group,
-                group.members,
-                WsOutbound(type="message.deleted", data={"message_id": msg.message_id}),
-            )
 
 
 async def _ws_message_react(user_id: str, msg: WsInbound) -> None:
@@ -533,31 +489,13 @@ async def _ws_message_react(user_id: str, msg: WsInbound) -> None:
 
     await MessageService.toggle_reaction(msg.message_id, user_id, msg.emoji)
 
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-    from ee.cloud.models.message import Message
-
-    message = await Message.get(PydanticObjectId(msg.message_id))
-    if message:
-        group = await Group.get(PydanticObjectId(message.group))
-        if group:
-            await manager.broadcast_to_group(
-                message.group,
-                group.members,
-                WsOutbound(
-                    type="message.reaction",
-                    data={
-                        "message_id": msg.message_id,
-                        "emoji": msg.emoji,
-                        "user_id": user_id,
-                    },
-                ),
-            )
-
 
 async def _ws_typing(user_id: str, msg: WsInbound, *, active: bool) -> None:
     if not msg.group_id:
+        return
+
+    members = await GroupService.list_member_ids(msg.group_id)
+    if user_id not in members:
         return
 
     if active:
@@ -565,47 +503,37 @@ async def _ws_typing(user_id: str, msg: WsInbound, *, active: bool) -> None:
     else:
         manager.stop_typing(msg.group_id, user_id)
 
-    from beanie import PydanticObjectId
-
-    from ee.cloud.models.group import Group
-
-    group = await Group.get(PydanticObjectId(msg.group_id))
-    if group:
-        await manager.broadcast_to_group(
-            msg.group_id,
-            group.members,
-            WsOutbound(
-                type="typing",
-                data={
-                    "group_id": msg.group_id,
-                    "user_id": user_id,
-                    "active": active,
-                },
-            ),
-            exclude_user=user_id,
-        )
+    await manager.send_to_room(
+        msg.group_id,
+        WsOutbound(
+            type="typing",
+            data={
+                "group_id": msg.group_id,
+                "user_id": user_id,
+                "active": active,
+            },
+        ),
+        exclude_user=user_id,
+    )
 
 
 async def _ws_read_ack(user_id: str, msg: WsInbound) -> None:
     if not msg.group_id or not msg.message_id:
         return
 
-    from beanie import PydanticObjectId
+    members = await GroupService.list_member_ids(msg.group_id)
+    if user_id not in members:
+        return
 
-    from ee.cloud.models.group import Group
-
-    group = await Group.get(PydanticObjectId(msg.group_id))
-    if group:
-        await manager.broadcast_to_group(
-            msg.group_id,
-            group.members,
-            WsOutbound(
-                type="read.receipt",
-                data={
-                    "group_id": msg.group_id,
-                    "user_id": user_id,
-                    "last_read": msg.message_id,
-                },
-            ),
-            exclude_user=user_id,
-        )
+    await manager.send_to_room(
+        msg.group_id,
+        WsOutbound(
+            type="read.receipt",
+            data={
+                "group_id": msg.group_id,
+                "user_id": user_id,
+                "last_read": msg.message_id,
+            },
+        ),
+        exclude_user=user_id,
+    )
